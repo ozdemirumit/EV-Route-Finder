@@ -1,0 +1,100 @@
+// Şarj planını araç konumuna göre canlı tutar: geçilen duraklar plandan çıkar, plan bulunulan konum ve gerçek pil % ile
+// yeniden hesaplanır (aşağıdaki durumlarda), böylece kalan durak sayısı, süre ve maliyet güncel kalır.
+import { getState, effective, patch } from '../state.js';
+import { VEHICLE } from '../config.js';
+import { replanFrom } from './controller.js';
+import { fetchAvailability } from '../providers/index.js';
+import { slotKind } from './slots.js';
+import { speak } from '../advisor/voice.js';
+import { t } from '../i18n/index.js';
+import { proxyHas } from '../net/proxy.js';
+
+const BAT = VEHICLE.batteryNetKwh;
+const CHECK_MS = 5000;
+const COOLDOWN_MS = 45000;
+const REFRESH_KM = 25; // en az bu kadar yol sonrası kalan planı tazele
+const SOC_TOLERANCE = 4; // plan beklentisinden bu kadar puan saparsa (rüzgâr, hız, gerçek tüketim) yeniden planla
+const PASSED_KM = 0.3; // durağı bu kadar geçince "geride kaldı" say
+
+let lastReplan = 0;
+let lastAvail = 0;
+let availBusy = false;
+const AVAIL_EVERY_MS = 5 * 60e3; // yaklaşan duraklar için canlı doluluk sorgusu aralığı (Premium'da sıklaştırılır, aşağıya bak)
+const AVAIL_LOW_SOC = 20; // pil bunun altındaysa durak sorguları en sıkı ve daha çok durağa yapılır
+const AVAIL_AHEAD_KM = 200;
+
+function check() {
+  const plan = getState('plan');
+  const eng = getState('engine');
+  const e = effective();
+  if (plan.status !== 'ready' || !plan.profile || eng.routeKm == null || e.soc == null) return;
+  if (eng.offRouteKm > 3) return; // rotadan çıkıldı: yeniden rota (navigasyon) halleder
+  if (!getState('nav').active && (e.speed ?? 0) <= 5) return; // park halinde (rota önizlemesi): plan konuma göre kısaltılmaz
+  if (Date.now() - lastReplan < COOLDOWN_MS) return;
+
+  const km = eng.routeKm;
+  const fromKm = plan.fromKm ?? 0;
+  if (km < fromKm - 1) return; // geriye gidildi/rota sıfırlandı: dokunma
+
+  const passed = plan.stops.some((s) => s.km < km - PASSED_KM);
+  const baseSoc = plan.fromSoc ?? plan.startSoc;
+  const k = plan.kInfo?.k ?? eng.k;
+  const expected = baseSoc == null ? null : baseSoc - (plan.profile.energyBetween(fromKm, km, k) / BAT) * 100;
+  const drift = expected == null ? 0 : Math.abs(e.soc - expected);
+  const far = km - fromKm >= REFRESH_KM;
+
+  if (passed || drift > SOC_TOLERANCE || far) {
+    lastReplan = Date.now();
+    const behind = plan.stops.filter((s) => s.km < km - PASSED_KM).map((s) => s.km);
+    if (behind.length) patch('plan', { lastStopKm: Math.max(...behind) }); // sonraki durağa 'önceki duraktan' mesafe için
+    replanFrom({ km, soc: e.soc, maxFirstStopKm: Infinity }); // uygun plan yoksa eski plan kalır
+  }
+}
+
+/**
+ * Yaklaşan (≤ 200 km) planlı durakların canlı doluluğunu 5 dakikada bir yenile. Bir durak dolu/arızalı çıkarsa plan bu bilgiyle
+ * yeniden hesaplanır (arızalı istasyon aday olmaz, dolu olana bekleme süresi eklenir) ve sesli söylenir.
+ */
+export async function refreshAvailability({ force = false } = {}) {
+  const plan = getState('plan');
+  const km = getState('engine').routeKm;
+  // Premium: canlı veri daha güncel gelsin (2 dk; pil kritikse 1 dk ve ilk 3 durak). Ücretsizde 5 dk, ilk 2 durak. Sunucu önbelleği 90 sn.
+  const premium = proxyHas('occupancy');
+  const soc = effective().soc;
+  const low = premium && soc != null && soc <= AVAIL_LOW_SOC;
+  const every = !premium ? AVAIL_EVERY_MS : low ? 60e3 : 2 * 60e3;
+  const ahead = low ? 3 : 2;
+  if (availBusy || plan.status !== 'ready' || km == null || (!force && Date.now() - lastAvail < every)) return;
+  const next = plan.stops.filter((s) => s.km > km && s.km - km <= AVAIL_AHEAD_KM).slice(0, ahead).map((s) => s.station);
+  if (!next.length) return;
+  availBusy = true;
+  lastAvail = Date.now();
+  try {
+    const res = await fetchAvailability(next, ahead, soc); // pil %: sunucu ücretli Google'ı yalnızca düşük pilde sorar
+    let worse = null;
+    for (const st of plan.stations) {
+      if (!res.has(st.id)) continue;
+      const before = slotKind(st);
+      st.slots = res.get(st.id) ?? st.slots;
+      const after = slotKind(st);
+      if ((after === 'full' || after === 'out') && before !== after) worse = st;
+    }
+    patch('plan', { availAt: Date.now() }); // listeleri yeniden çizdir
+    if (worse) {
+      const e = effective();
+      const ids = () => getState('plan').stops.map((s) => s.station.id).join();
+      const before = ids();
+      if (e.soc != null) replanFrom({ km, soc: e.soc, maxFirstStopKm: Infinity });
+      const changed = ids() !== before; // plan gerçekten değişti mi (dolu durak yerine başka istasyon seçildi mi)
+      const why = slotKind(worse) === 'out' ? 'şarj üniteleri arızalı' : 'şu an boş yuva yok';
+      speak(t(changed ? '{0} istasyonunda {1}. Plan güncellendi.' : '{0} istasyonunda {1}. Başka uygun istasyon yok, plan değişmedi.', worse.name, why), { key: 'slot' + worse.id, cooldownMs: 10 * 60e3 });
+    }
+  } finally {
+    availBusy = false;
+  }
+}
+
+export function initLivePlan() {
+  setInterval(check, CHECK_MS);
+  setInterval(() => refreshAvailability(), 30000);
+}
