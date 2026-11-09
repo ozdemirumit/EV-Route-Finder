@@ -36,7 +36,7 @@ export const PLANNER = {
   minChargeTo: 20,
   minStopAdd: load('minStopAdd', 15), // bir durakta en az eklenecek pil puanı (6 puanlık anlamsız mola olmasın)
   tolerance: load('tolerance', 3), // giriş/varış eşiğinde ± puan: altına düşmek yasak değil, cezalı (eşikte "uçurum" olmasın)
-  maxChargeTo: load('maxChargeTo', 90), // bir durakta en fazla şarj hedefi % (kullanıcı ayarlar)
+  maxChargeTo: load('maxChargeTo', 80), // bir durakta en fazla şarj hedefi % (kullanıcı ayarlar)
   chargeStep: 5,
   stopOverheadMin: 4, // fişe takma/çıkarma
   timeValueTlPerMin: 3, // "Optimum" modunda 1 dk'nın TL karşılığı
@@ -60,7 +60,12 @@ export const ABRP = {
 
 export const OCR = {
   intervalMs: 5000,
-  idleIntervalMs: 15000, // pil değeri 3 okumadır değişmediyse bu aralıkla oku (telefon pili)
+  samples: 3, // pil ve hız değer sabit kalsa da bu aralıkla okunur; bir çevrimde en az bu kadar kare
+  maxSamples: 5, // kareler tutarsızsa en çok bu kadar
+  sampleGapMs: 250, // kareler arası bekleme
+  cycleBudgetMs: 3800, // çevrim içinde yeni kare/yöntem için süre sınırı (5 sn aralığa sığsın)
+  cycleTimeoutMs: 12000, // bu süreyi aşan çevrim takılmış sayılır, işçi yeniden kurulur
+  strongScore: 0.6, // bu skorda kareler yeterli sayılır, ek kare alınmaz
   maxJumpPct: 2, // 5 sn'de bundan fazla değişen pil okuması reddedilir
   maxJumpKmh: 40, // ekran hızı için
 };
