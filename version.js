@@ -2,8 +2,32 @@
 // KURAL: her değişiklikte APP_VERSION artırılır ve APP_CHANGELOG'un EN ÜSTÜNE bir kayıt eklenir.
 //   x.y.z → z: düzeltme · y: yeni özellik · x: uyumsuz/büyük değişiklik. Commit mesajı "vX.Y.Z: ..." ile başlar.
 // Sürüm değişince sw.js'in önbellek adı da değişir; telefon yeni sürümü indirir.
-self.APP_VERSION = '0.99.5';
+self.APP_VERSION = '0.99.9';
 self.APP_CHANGELOG = [
+  {
+    v: '0.99.9', date: '2026-11-11',
+    notes: [
+      'Sarj duragina varinca (kamera pili okumuyorsa) arac yuzdesi sorulur: girilen deger elle pil olarak tuketim ogrenmeye katilir; tahmin, plan ve gercek fark Menzil gecmisinde Varis kalibrasyonlari listesinde tutulur',
+    ],
+  },
+  {
+    v: '0.99.8', date: '2026-11-11',
+    notes: [
+      'Pil hapinda iki tuketim (simdi ve rota/duz ortalama) ve toplam menzilin yaninda esik piline kadar menzil gosterilir',
+    ],
+  },
+  {
+    v: '0.99.7', date: '2026-11-11',
+    notes: [
+      'Kamerasiz tuketim ogrenme: yol aldiktan sonra elle girilen pil (en az 10 km, 5 puan dusus) olcum penceresi sayilir; k ve gecmis guncellenir, ogrenince bildirim gosterilir',
+    ],
+  },
+  {
+    v: '0.99.6', date: '2026-11-10',
+    notes: [
+      'Istasyon listesinde pil dolu iken yakin adaylarda eksi maliyet duzeltildi (sarj gerekmez, sona siralanir); imkansiz ortalama gucu olan sarj oturumlari kayda alinmaz ve listeden suzulur',
+    ],
+  },
   {
     v: '0.99.5', date: '2026-11-10',
     notes: [
