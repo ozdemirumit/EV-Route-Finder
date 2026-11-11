@@ -12,7 +12,7 @@ import { buildTrack, locate, headingAt, pointAtKm } from './track.js';
 import { bearing, haversineKm } from '../utils/geo.js';
 import { icon, setManeuverIcon } from '../ui/icons.js';
 import { currentLimit } from './speedLimit.js';
-import { speedBar, pickAlert, ALERT_MS } from './panelLogic.js';
+import { speedOver, pickSlot, ALERT_MS } from './panelLogic.js';
 
 const $ = (id) => document.getElementById(id);
 const THEN_MAX_M = 500; // sonraki manevra panelde yalnızca bu kadar yakınsa gösterilir
@@ -106,7 +106,7 @@ function tick() {
     planId = plan.planId; said = new Set(); offSince = 0; trackKm = null;
     track = plan.route?.coords ? buildTrack(plan.route.coords) : null;
     zoomNow = null; // yeni rota (yeniden rota dahil): harita zorla araca ortalanır ve zoom yeniden ayarlanır
-    mapApi.recenter?.();
+    if (!mapApi.dragged?.()) mapApi.recenter?.(); // kullanıcı haritayı kaydırdıysa görünüm korunur; takip Ortala ile döner
   }
   if (!track || e.lat == null) return paint('📍', '', 'Konum bekleniyor…', 'GPS kapalıysa haritadaki konum düğmesine dokun', true);
 
@@ -228,26 +228,41 @@ function paintCharge(plan, km, nextStop) {
   $('ne-next-box').title = nextStop ? nextStop.station.name : '';
 }
 
-/** Üst panel: anlık hız ve ince hız çubuğu (hız limiti işareti ölçekte; limit aşılınca çubuk kırmızı). Rotada olmasan da çalışır. */
+/** Güncel hız aşımı (hız, limit ve uyarı metni aynı kaynaktan: effective().speed); veri yoksa null. */
+function overNow(e) {
+  return getState('nav').active ? speedOver(e.speed, currentLimit(), getState('nav').speedAlert) : null;
+}
+
+/** Üst panel: anlık hız (aşımda kırmızı). Hız sınırı levhası speedLimit.js tarafından boyanır. Rotada olmasan da çalışır. */
 function paintSpeed(e) {
   $('nh-speed').textContent = e.speed == null ? '--' : Math.round(e.speed);
-  const b = speedBar(e.speed, currentLimit());
-  const bar = $('nav-speedbar');
-  bar.style.setProperty('--spd', b.pct + '%');
-  bar.style.setProperty('--lim', (b.limitPct ?? 0) + '%');
-  bar.classList.toggle('over', b.over);
-  bar.classList.toggle('nolimit', b.limitPct == null);
+  $('nb-speed').classList.toggle('over', !!overNow(e));
+  paintAlert(false); // aşım metnindeki hız, büyük hız rakamıyla aynı saniyede yenilenir
 }
 
 let alertTick = 0;
-/** Sağ sütun: yalnızca gerçek trafik ve yağış uyarıları (nav.ahead), 3 sn aralıkla dönüşümlü; ikisi de yoksa alan gizli. step=true sırayı ilerletir. */
+/**
+ * Sağ bölüm alt hücresi: pil, varışta pil, sonraki şarj ve yalnızca gerçek uyarılar (pil/varış planı uyarısı, trafik, yağış) 3 sn aralıkla dönüşümlü.
+ * Hız aşımı (ahead.js 5 sn bekletmesi + şu anki hız hâlâ limit üstünde) öncelikli: her ikinci adımda gösterilir. step=true sırayı ilerletir.
+ */
 function paintAlert(step) {
-  const a = getState('nav').ahead;
-  const items = getState('nav').active ? [a.traffic, a.rain] : [];
+  const nav = getState('nav');
+  const a = nav.ahead;
+  const adv = getState('advisor');
+  const alerts = nav.active ? [adv.level === 'warn' || adv.level === 'bad' ? adv.text : null, a.traffic, a.rain].filter((x) => typeof x === 'string' && x.trim()) : [];
+  const has = (id) => !['--', ''].includes($(id).textContent.trim());
+  const slots = [has('ne-soc') && 'soc', has('ne-arrive') && 'arrive', has('ne-next') && 'next', ...alerts.map((_, i) => 'alert:' + i)];
+  const e = effective();
+  const over = a.speed ? overNow(e) : null;
   if (step) alertTick++;
-  const text = pickAlert(items, alertTick) || '';
+  const slot = pickSlot(slots, alertTick, !!over) || 'soc';
+  const text = slot === 'over'
+    ? `⚠️ ${over.road ? 'Yol hız limitini' : 'Hız eşiğini'} aştın: ${over.kph} km/s (${over.road ? 'limit' : 'eşik'} ${over.limit})`
+    : slot.startsWith('alert:') ? alerts[Number(slot.slice(6))] : '';
+  for (const el of $('nb-rot').querySelectorAll('[data-slot]')) el.classList.toggle('hidden', el.dataset.slot !== slot);
   const el = $('nb-alert');
   el.classList.toggle('hidden', !text);
+  el.classList.toggle('over', slot === 'over');
   if (el.textContent !== text) el.textContent = text;
 }
 
@@ -277,7 +292,7 @@ function followMap(e, distM, st, routeHeading) {
   if (gliding()) return; // kamerayı kare döngüsü (frame) sürer; burada yalnızca zoom hedefi (zoomNow) güncellenir
   // Dönüş yönü rotanın gidiş yönünden alınır (GPS yönü olmasa da çalışır); rota dışındaysa GPS yönü
   const heading = routeHeading ?? ((e.speed ?? 0) > 5 ? e.heading : null);
-  mapApi.follow(e.lat, e.lon, change ? want : null, change, getState('nav').headingUp ? heading : null);
+  mapApi.follow(e.lat, e.lon, change ? want : null, change && !mapApi.dragged(), getState('nav').headingUp ? heading : null); // kaydırılmışken zoom değişimi haritayı geri çekmez
 }
 
 let starting = false;
