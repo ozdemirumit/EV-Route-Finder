@@ -2,8 +2,23 @@
 // KURAL: her değişiklikte APP_VERSION artırılır ve APP_CHANGELOG'un EN ÜSTÜNE bir kayıt eklenir.
 //   x.y.z → z: düzeltme · y: yeni özellik · x: uyumsuz/büyük değişiklik. Commit mesajı "vX.Y.Z: ..." ile başlar.
 // Sürüm değişince sw.js'in önbellek adı da değişir; telefon yeni sürümü indirir.
-self.APP_VERSION = '0.99.55';
+self.APP_VERSION = '0.99.57';
 self.APP_CHANGELOG = [
+  {
+    v: '0.99.57', date: '2026-11-13',
+    notes: [
+      'Düzeltme (Beta): telefonda istasyon ayrıntı kartı ekrandan taşıyor, sağ üstteki kapat (X) düğmesi görünmüyor ve dokunulamıyordu. Kök neden: olanak düğmeleri tek satırda kalıp kartın içeriğini ekrandan geniş yapıyordu.',
+      'Kart artık ekran genişliğine sığar (güvenli alan payıyla), olanak düğmeleri alt satıra geçer, uzun istasyon adı sarar. Başlık ve X kart kaydırılırken üstte kalır; X dokunma alanı 44x44 piksel. Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.56', date: '2026-11-13',
+    notes: [
+      'Düzeltme (Beta): "3 km sonra trafik var" uyarısı araç ilerledikçe azalmıyordu (metin veri alındığı anda donduruluyordu). Trafik ve yağış uyarıları artık rota üzerindeki konuma bağlanır; kalan mesafe 5 saniyede bir güncel konumdan hesaplanır, ek ücretli istek yapılmaz.',
+      'Trafik: sıkışıklığa varınca "Şu an", geçince uyarı kalkar. Sesli hatırlatma 5 km, 2 km ve 500 m kala bir kez. Trafik rotası planlı rotayla aynı yolda değilse ya da rotadan çıktıysan geri sayım yerine "mesafe belirsiz" yazılır.',
+      'Yağış: tahmin alan düzeyinde olduğundan mesafe kaba yuvarlanır (10 km üstünde 5 km adım); noktaya varınca "Bu bölgede yağmur bekleniyor" yazılır. Cihazda doğrulanmadı.',
+    ],
+  },
   {
     v: '0.99.55', date: '2026-11-13',
     notes: [
