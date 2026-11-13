@@ -2,8 +2,99 @@
 // KURAL: her değişiklikte APP_VERSION artırılır ve APP_CHANGELOG'un EN ÜSTÜNE bir kayıt eklenir.
 //   x.y.z → z: düzeltme · y: yeni özellik · x: uyumsuz/büyük değişiklik. Commit mesajı "vX.Y.Z: ..." ile başlar.
 // Sürüm değişince sw.js'in önbellek adı da değişir; telefon yeni sürümü indirir.
-self.APP_VERSION = '0.99.38';
+self.APP_VERSION = '0.99.50';
 self.APP_CHANGELOG = [
+  {
+    v: '0.99.50', date: '2026-11-13',
+    notes: [
+      'Düzeltme: canlı trafik isteği sürerken rota değişirse eski isteğin bitişi yeni rotanın ilk trafik yenilemesini artık 10 dk ertelemez; aynı rotada 10 dk aralık aynen korunur.',
+      'Düzeltme: canlı kalan süre artık rotaya bağlı; navigasyon yalnızca aynı rotanın son 15 dk içindeki canlı süresini kullanır, önceki rotanın varış saatini göstermez. Trafik kaynağı reddedilirse önceki canlı süre de silinir; diğer uyarılar, sağlayıcı sırası, istek sayısı ve arayüz değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.49', date: '2026-11-13',
+    notes: [
+      'Yolda canlı trafik koruması (js/nav/trafficGuard.js): canlı trafik sonucu yalnızca seçilen rotayı veren sağlayıcıyla aynı kaynaktan geliyorsa plana işlenir (TomTom rotasına TomTom haritasında TomTom trafiği, Mapbox rotasına Mapbox trafiği). Farklı, bilinmeyen ya da ücretsiz (osm) kaynakta hızlar, enerji, trafik renkleri, varış süresi, trafik uyarısı ve ses değişmez; yalnızca trafik metni silinir, yağmur/kamera/eğim uyarıları korunur.',
+      'İstek sürerken rota değişirse eski trafik sonucu hiçbir şeye işlenmez. Sağlayıcı sırası, istek sayısı, aynı sağlayıcıdaki davranış, harita ve arayüz değişmedi; HERE kapalı.',
+    ],
+  },
+  {
+    v: '0.99.48', date: '2026-11-13',
+    notes: [
+      'Altyapı (görünür değişiklik yok): yoldaki canlı trafik sonucuna, trafik verisini gerçekten veren sağlayıcı ayrı bir alan olarak kaydedilir (TomTom ya da Mapbox). TomTom alınamayıp Mapbox’a düşülünce kayıt mapbox olur; açık harita sağlayıcısı trafik kaynağı sayılmaz. Trafik kaynağı yoksa sonuç eskisi gibi boştur.',
+      'Trafik rotası seçilen rotanın kaynak kaydıyla etiketlenmez; trafik kaynağı seçilen rotanın sağlayıcısından farklı olabilir. Sağlayıcı sırası, trafik hızları, trafik renkleri, uyarılar, ses ve harita değişmedi; bu kaydı henüz hiçbir ekran okumuyor.',
+    ],
+  },
+  {
+    v: '0.99.47', date: '2026-11-13',
+    notes: [
+      'Altyapı (görünür değişiklik yok): seçilen rotaya, rotayı gerçekten veren sağlayıcı kaydedilir (TomTom, Mapbox ya da ücretsiz Valhalla = osm). TomTom ya da Mapbox rotası alınamayıp ücretsiz rotaya düşülünce kayıt osm olur; açık harita sağlayıcısı rota sağlayıcısı sayılmaz.',
+      'Mapbox rotasında şerit bilgisinin durumu adımlardan okunur (var / rota boyunca yok); adım listesi yoksa durum uydurulmaz. Tünel/köprü kaynağı hâlâ yok.',
+      'Rota, sesli yönlendirme, harita, uyarılar, şerit paneli, sağlayıcı sırası ve ayarlar değişmedi; bu kaydı henüz hiçbir ekran okumuyor.',
+    ],
+  },
+  {
+    v: '0.99.46', date: '2026-11-13',
+    notes: [
+      'Altyapı (görünür değişiklik yok): sağlayıcıdan bağımsız rota üst verisi modeli eklendi (js/nav/routeMeta.js). Şerit, tünel ve köprü bilgisinin hangi sağlayıcıdan geldiği kaydedilir; veri var, yok, istenmedi ve desteklenmiyor durumları ayrılır; bilinmeyen ya da başka sağlayıcıdan gelen veri reddedilir.',
+      'Köprü, tünel, alt ya da üst geçit asla GPS kaybından çıkarılmaz. Bugün yalnızca Mapbox şerit verisi var; tünel/köprü kaynağı yok.',
+      'Model henüz uygulamaya bağlı değil: rota sağlayıcısı, harita, uyarılar, şerit paneli, kamera, sunucu ve ayarlar değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.45', date: '2026-11-13',
+    notes: [
+      'Düzeltme (sunucu): yalnızca boşluktan oluşan TOMTOM_MAP_KEY artık tanımlı sayılmaz; bu durumda TomTom haritası kapalı kalır ve Premium kullanıcılar OpenFreeMap haritasına düşer. Geçerli anahtar değiştirilmeden kullanılır; sunucu anahtarı TOMTOM_KEY tarayıcıya gitmez.',
+    ],
+  },
+  {
+    v: '0.99.44', date: '2026-11-13',
+    notes: [
+      'Güvenlik sertleştirmesi (sunucu): TomTom sunucu anahtarı (TOMTOM_KEY) artık hiçbir durumda tarayıcıya gönderilmez. Premium TomTom haritası yalnızca ayrı, adres kısıtlı TOMTOM_MAP_KEY tanımlıysa açılır; tanımlı değilse Premium kullanıcılar sessizce OpenFreeMap haritasına düşer. Sunucu tarafı TomTom doluluk, arama ve rota değişmedi.',
+      'Günlük temizleyicisi genişletildi: Google giriş sırrı, SMTP parolası, yönetici erişim kodları ve HERE erişim anahtarları da günlüklerde *** ile gizlenir.',
+      'Mapbox, Google ve OpenFreeMap harita davranışı, lisans/sağlayıcı ayarları ve arayüz değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.43', date: '2026-11-13',
+    notes: [
+      'Altyapı (görünür değişiklik yok): sağlayıcı politika/yetenek kaydı eklendi (server/providerPolicy.mjs). OSM, TomTom ve HERE için katman (Free/Premium), kaynak, atıf zorunluluğu ve lisans durumu tek yerde tanımlandı; sağlayıcılar arası harita/rota/veri karıştırması varsayılan olarak reddedilir.',
+      'HERE harita ve rota varsayılan olarak kapalı; HERE ve TomTom lisans koşulları doğrulanmadığı için “doğrulanmadı” olarak işaretli, hukuki onay iddia edilmez. Free hesap Premium sağlayıcılara erişemez.',
+      'Kayıt henüz uygulamaya bağlı değil: rota, harita, doluluk, önbellek, hız limiti, ödeme, hava durumu, anahtarlar ve ayarlar ekranı değişmedi; ayarlarda yeni sağlayıcı yok.',
+    ],
+  },
+  {
+    v: '0.99.42', date: '2026-11-13',
+    notes: [
+      'OCR hane kanıtı düzeltmesi (Faz A): parlama ya da kırpma ikinci rakamın bir kısmını silince (ör. 63 → yalnızca 6 görünür) OCR 2 artık yanlışlıkla “tek hane” kanıtı vermez. Elenen kısa/silik bir rakam parçası, benzerliği düşük bir aday ya da okuma kutusu kenarına değen tek rakam varsa hane sayısı “belirsiz” sayılır; böylece 63 → 6 gibi hatalı düşüşler tek hane kanıtıyla hızlıca kabul edilmez.',
+      'Gerçek tek haneli pil değeri (ör. %6, %7) reddedilmez: temiz görüntüde tek hane kanıtı korunur; belirsizlikte değer yine okunur, yalnızca ek doğrulama ister.',
+      'Testler: modelde olmayan 6 yazı tipinde 63 sınama sahnesi ve 42/73/63 için parlama/kırpma senaryoları eklendi. 5 sn okuma aralığı, OCR 1/OCR 2 seçimi, kamera, navigasyon, fiyat ve harita değişmedi. Telefonda henüz doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.41', date: '2026-11-13',
+    notes: [
+      'Kamera sekmesindeki Yakınlaştırma kaydırıcısı kaldırıldı: kamera artık her zaman en geniş görüşte sabit. Etiketinden tanınan ultra geniş arka kamera varsa o seçilip oturum boyunca sabit kalır (kamera değiştirme yok); cihaz donanım zoom’u veriyorsa en küçük değeri (en geniş) uygulanır, odak/pozlama ayarı korunur; zoom desteklenmez ya da reddedilirse varsayılan arka kamera 1× kullanılır.',
+      'Dijital (CSS) yakınlaştırma tamamen kaldırıldı: görüntü büyütülmez, OCR kırpması her zaman ölçeksiz kareyle eşlenir.',
+      'Eski sürümde kaydedilmiş yakınlaştırma (camZoom) artık kullanılmaz ve bir kez silinir. Dijital yakınlaştırmayla ayarlanmış okuma kutuları (SOC ve hız) aynı ekran bölgesini okuyacak şekilde kesin olarak uyarlanır. Donanım zoom’uyla kaydedilmiş bir değer güvenle eşlenemediği için kutu olduğu gibi bırakılır ve kutuyu yeniden ayarlamanız istenir.',
+      'OCR algoritması, 5 saniyelik okuma aralığı, OCR 1/OCR 2, SOC, navigasyon ve rota planlama değişmedi. Telefonda/tarayıcıda henüz doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.40', date: '2026-11-13',
+    notes: [
+      'Rota sayfasına katlanır “Rota seçeneklerini karşılaştır” bölümü: aynı güzergâh üzerinde Hızlı / Ekonomik / Optimum şarj planları süre, durak, maliyet ve pil payıyla yan yana. Rota sağlayıcısı tek güzergâh verdiği için alternatif güzergâh uydurulmaz; bu açıkça yazılır.',
+      '“En ucuz” rozeti yalnızca tüm farklı planların maliyeti bilinen tarifeyle hesaplanabiliyorsa verilir; tahmini (ortalama) ve bilinmeyen fiyat ayrı yazılır, bilinmeyen tutar toplama eklenmez.',
+      '“En düşük risk” ölçütleri gösterilir: önce yolculuktaki en düşük tahmini pil, sonra belirsiz durak sayısı (güç bilinmiyor, AC, taze bilgiye göre dolu/arızalı), sonra durak sayısı. Aynı planı veren modlar tek plan sayılır.',
+      'Seçenekler mevcut planla aynı başlangıç km/pil ve ilk durak sınırıyla kurulur; bölüm yalnızca açıkken hesaplanır. “Bunu kullan” İstasyon sekmesindeki mod çipleriyle aynı yoldan planlayıcı modunu değiştirir. Navigasyon ekranı, kamera, SOC ve yakın sıralama değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.39', date: '2026-11-13',
+    notes: [
+      'Yakinimdaki istasyonlar listesine siralama: En yakin / En ucuz / En hizli (secim hatirlanir). En ucuzda yalnizca bilinen fiyatlar siralanir; tahmini ya da bilinmeyen fiyatlar etiketlenir ve bilinen fiyatlardan sonra gelir. En hizlida kayitta yazmayan guc etiketlenir ve sona alinir. Taze dolu/arizali istasyonlar her siralamada sona alinir; eski doluluk bilgisi bos sayilmaz, eski bilgi diye yazilir. Bilinmeyen fiyatta TL maliyet yazilmaz. Dusuk pil onerisi bu siralamadan etkilenmez.',
+    ],
+  },
   {
     v: '0.99.38', date: '2026-11-12',
     notes: [
