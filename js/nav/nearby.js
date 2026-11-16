@@ -19,10 +19,11 @@ import { fetchAvailability } from '../routing/occupancyClient.js';
 import { proxyHas } from '../net/proxy.js';
 import { startNav, syncTopPanel } from './navigator.js';
 import { icon } from '../ui/icons.js';
-import { measuredSoc } from '../physics/socEstimate.js';
+import { measuredSoc, socSource } from '../physics/socEstimate.js';
+import { socTrusted } from '../routing/socTrust.js';
 import { paintMore } from '../ui/moreToggle.js';
 import { pickEmergency, priceText, isFast, PICK_TITLES, ROUTE_OFF_KM, ROUTE_NEAR_KM, ALERT_PAGE, alertList, alertPage, priceStatus } from './chargePick.js';
-import { sortNearby, sortNote, availability, priceLabel, powerLabel, NEAR_SORTS } from './nearSort.js';
+import { sortNearby, sortNote, priceLabel, powerLabel, NEAR_SORTS } from './nearSort.js';
 
 const $ = (id) => document.getElementById(id);
 const BAT = VEHICLE.batteryNetKwh;
@@ -34,6 +35,19 @@ const LOW_REFRESH_MS = 5 * 60e3;
 const CHARGE_TO = 80;
 const OCC_EVERY_MS = 60e3; // kritik pilde (Premium) aday istasyonların canlı doluluğu bu aralıkla yenilenir (sunucu önbelleği 90 sn)
 const OCC_BATCH = 6; // sunucu bir istekte en çok 6 istasyon alır
+// Arama atılan hatayla bittiyse (ör. sunucu Mapbox 402/401 → kategori sorgusu fatal) meta.at yazılmaz: otomatik yeniden arama
+// (watch / düşük pil autoSearch) üstel geri çekilir (60 sn → 2 → 4 → 8 → en çok 10 dk); başarı sıfırlar. Elle Yenile etkilenmez (G2b).
+const RETRY_MIN_MS = 60e3;
+const RETRY_MAX_MS = 10 * 60e3;
+let failN = 0;
+let retryAt = 0;
+// S-1 (v0.99.93): arama hata DİZİSİYLE ve istasyonsuz döndüyse (kaynak ulaşılamadı, throw değil) otomatik yeniden arama da geri çekilir:
+// 45 sn → 90 → 180 → en çok 5 dk (düşük pil tazelemesiyle aynı tavan). Elle Yenile beklemez ve sayacı 1'den başlatır; istasyonlu sonuç sıfırlar.
+// S-1b: böyle bir hata son başarılı listeyi SİLMEZ; liste en çok 60 dk korunur (varış pili/uzaklık anlık konumdan yeniden hesaplanır).
+const S1_MIN_MS = 45e3;
+const S1_MAX_MS = 5 * 60e3;
+const LAST_GOOD_MAX_MS = 60 * 60e3;
+let goodAt = 0; // son istasyonlu sonucun zamanı
 
 let all = []; // son sorgu sonucu (fetchAround)
 let meta = { at: 0, lat: null, lon: null, errors: [], cached: false };
@@ -100,6 +114,7 @@ export async function refreshNearby({ force = false, silent = false } = {}) {
   paintStatus('Yakındaki istasyonlar aranıyor…');
   try {
     const old = new Map(all.map((x) => [x.id, x.slots]));
+    const prev = all;
     let res;
     const low = e.soc != null && inTrouble(e, getState('nav'));
     const steps = low ? RADIUS_STEPS.filter((r) => r >= EMERGENCY_KM) : RADIUS_STEPS;
@@ -111,9 +126,21 @@ export async function refreshNearby({ force = false, silent = false } = {}) {
       if (low && radiusSetting === 'auto' && !res.errors.length && r < RADIUS_STEPS.at(-1) && !visible({ power: false, brand: false }).some((s) => isFast(s) && s.reachable)) continue; // düşük pilde ulaşılabilir hızlı istasyon çıkana kadar genişle
       if (visible().length || res.errors.length) break; // hata varsa genişletmenin anlamı yok (aynı sunucu)
     }
+    const failedEmpty = res.errors.length > 0 && !res.stations.length;
+    if (failedEmpty && prev.length && Date.now() - goodAt <= LAST_GOOD_MAX_MS) all = prev; // S-1b: son iyi liste korunur
+    else if (res.stations.length) goodAt = Date.now();
     meta = { at: Date.now(), lat: e.lat, lon: e.lon, errors: res.errors, cached: res.cached };
+    if (failedEmpty) { // S-1: hata dizisi + boş sonuç → sınırlı üstel geri çekilme (elle Yenile 1'den başlatır)
+      failN = silent ? failN + 1 : 1;
+      retryAt = Date.now() + Math.min(S1_MAX_MS, S1_MIN_MS * 2 ** (failN - 1));
+    } else {
+      failN = 0;
+      retryAt = 0;
+    }
   } catch (err) {
     meta = { ...meta, errors: ['Arama başarısız: ' + err.message] };
+    failN++;
+    retryAt = Date.now() + Math.min(RETRY_MAX_MS, RETRY_MIN_MS * 2 ** (failN - 1));
   } finally {
     busy = false;
   }
@@ -239,8 +266,7 @@ function render() {
     const meta2 = cell('div', 'meta', t('~{0} km yol', fmtKm(s.roadKm))
       + (s.arrive != null ? ' ' + t('· varışta %{0}', Math.max(0, s.arrive).toFixed(0)) : '')
       + ' ' + (s.foreign || !known ? t("· %{0}'e ≈ {1} dk", CHARGE_TO, Math.round(s.minutes)) : t("· %{0}'e ≈ {1} dk, {2} TL", CHARGE_TO, Math.round(s.minutes), s.cost.toFixed(0)))); // parçalar ayrı çevrilir (tek dizge olarak desen eşleşmez) // doluluk verisi yalnızca gelen istasyonda gösterilir (altta slotEl)
-    const av = availability(s);
-    const slotNode = av === 'stale' ? cell('span', '', ' · ⚪ doluluk bilgisi eski') : slotEl(s); // eski veri "boş"/"dolu" diye gösterilmez
+    const slotNode = slotEl(s); // D3-T4: eski / zaman damgasız veri slotEl'de "⚪ Bilinmiyor" (boş/dolu diye gösterilmez)
     if (slotNode) meta2.append(slotNode);
     const lp = livePrice(s);
     if (lp) meta2.append(' · ', cell('span', '', lp.text));
@@ -401,7 +427,7 @@ function inTrouble(e, nav) {
 
 /** Veri yoksa/eskiyse kendiliğinden ara (45 sn'de bir; başarısız denemeler döngüye girmesin). */
 function autoSearch(widen = false) {
-  if (busy || Date.now() - meta.at < 45000) return;
+  if (busy || Date.now() < retryAt || Date.now() - meta.at < 45000) return;
   if (widen && radiusSetting !== 'auto' && radius < 50) { radiusSetting = 50; radius = 50; save('nearRadiusMode', radiusSetting); $('near-radius').value = '50'; }
   refreshNearby({ silent: true, force: true });
 }
@@ -421,20 +447,23 @@ function checkLow() {
   }
   if (!troubleSince) troubleSince = Date.now();
   if (Date.now() < dismissedUntil) return;
-  refreshOccupancy(); // Premium: kritik pilde aday istasyonların doluluğunu dakikada bir yenile
+  // Güvenilir pil (taze kamera, elle, Test Modu): düşük pilin KENDİSİ yalnızca bunda dış istek (canlı doluluk, yakın arama) ve otomatik
+  // rota tetikler. Tahmin/eski/varsayılan pilde uyarı ve ses sürer; arama kullanıcının Yenile'sine ve normal sürüş tazelemesine kalır (Q-SOC-2).
+  const socOk = socTrusted(e.source === 'sim' ? 'sim' : socSource());
+  if (socOk) refreshOccupancy(); // Premium: kritik pilde aday istasyonların doluluğunu dakikada bir yenile
 
   const soc = Math.round(e.soc);
   if (!all.length) {
-    const why = meta.at ? (meta.errors[0] ? `arama başarısız: ${meta.errors[0]}` : `${radius} km çevrede istasyon bulunamadı`) : 'aranıyor…';
+    const why = meta.at ? (meta.errors[0] ? `arama başarısız: ${meta.errors[0]}` : `${radius} km çevrede istasyon bulunamadı`) : socOk ? 'aranıyor…' : "aranmadı (pil tahmini) — İstasyonlar'da Yenile'ye dokunun";
     showAlert(`Pil %${soc}: yakındaki istasyonlar ${why}`);
-    autoSearch(meta.at > 0); // önceki arama boş döndüyse yarıçapı 50 km'ye çıkarıp kendiliğinden yeniden dene
+    if (socOk) autoSearch(meta.at > 0); // önceki arama boş döndüyse yarıçapı 50 km'ye çıkarıp kendiliğinden yeniden dene
     return;
   }
-  if (radiusSetting === 'auto' && radius < EMERGENCY_KM) autoSearch(); // pil yeni düştü: liste dar yarıçaptan kalmış olabilir
+  if (socOk && radiusSetting === 'auto' && radius < EMERGENCY_KM) autoSearch(); // pil yeni düştü: liste dar yarıçaptan kalmış olabilir
   const pickPool = rankNearby({ anyBrand: true });
   const ranked = rankNearby(); // elimCount bu listeye göre kalsın
   const best = ranked[0];
-  if (!best) { showAlert(`Pil %${soc}: uygun istasyon bulunamadı`); autoSearch(true); return; }
+  if (!best) { showAlert(`Pil %${soc}: uygun istasyon bulunamadı`); if (socOk) autoSearch(true); return; }
   const planBroken = getState('advisor').level === 'bad';
   const updated = Date.now() - lastAutoVia < 10 * 60e3;
   const premium = proxyHas('occupancy');
@@ -446,8 +475,9 @@ function checkLow() {
   const card = pick.station ?? best; // 150 kW üstü uygun istasyon yoksa en yakın uygun istasyon ("en ucuz" denmez)
   const stations = alertList(card, pick.fast, ranked); // sınırsız: önerilen kart, uygun hızlı istasyonlar, kalan uygun istasyonlar
   showAlert(t(PICK_TITLES[pick.kind], soc) + (updated ? ' ' + t('(rota otomatik güncellendi)') : ''), stations, notes);
-  // Plan sıradaki durağa/varışa ulaşılamıyor diyorsa: navigasyonda rotayı en uygun istasyon üzerinden kendiliğinden güncelle
-  if (planBroken && nav.active && getState('route').end && !updated && card.reachable && (card.arrive ?? 99) >= 5
+  // Plan sıradaki durağa/varışa ulaşılamıyor diyorsa: navigasyonda rotayı en uygun istasyon üzerinden kendiliğinden güncelle.
+  // Yalnızca güvenilir pil (taze kamera, elle, Test Modu; socOk yukarıda): tahmin/eski/varsayılan pilde uyarı ve ses sürer, rota kendiliğinden değişmez.
+  if (planBroken && socOk && nav.active && getState('route').end && !updated && card.reachable && (card.arrive ?? 99) >= 5
       && getState('plan').stops[0]?.station.id !== card.id && getState('plan').status !== 'loading') {
     lastAutoVia = Date.now();
     goTo(card, { auto: true }); // panelde görünen istasyonun aynısı
@@ -470,9 +500,9 @@ function watch() {
   const moving = nav.active || (e.speed ?? 0) > 5;
   const age = Date.now() - meta.at;
   const moved = meta.lat == null ? Infinity : haversineKm({ lat: meta.lat, lon: meta.lon }, e);
-  const lowNow = inTrouble(e, nav);
+  const lowNow = inTrouble(e, nav) && socTrusted(e.source === 'sim' ? 'sim' : socSource()); // düşük pil sıklığı (5 dk arama, 1 dk doluluk) yalnızca güvenilir pilde (Q-SOC-2)
   const wanted = moving && (all.length || nav.active) || lowNow;
-  if (wanted && !busy && (age > (lowNow ? LOW_REFRESH_MS : REFRESH_MS) || moved > REFRESH_KM)) refreshNearby({ silent: true });
+  if (wanted && !busy && Date.now() >= retryAt && (age > (lowNow ? LOW_REFRESH_MS : REFRESH_MS) || moved > REFRESH_KM)) refreshNearby({ silent: true });
   else { if (meta.at) render(); checkLow(); }
   if (all.length && (lowNow || moving)) refreshOccupancy({ every: lowNow ? OCC_EVERY_MS : 2 * 60e3 }); // Premium: sürerken 2 dk, kritik pilde 1 dk
 }

@@ -13,7 +13,7 @@ import { mapApi } from '../ui/mapView.js';
 import { buildTrack, locate } from './track.js';
 import { trafficUse } from './trafficGuard.js';
 import { activeMap } from '../net/activeMap.js';
-import { anchorTraffic, anchorRain, mergeEvent, stepEvent, primeThresholds, dueThreshold, fmtTrafficKm, fmtRainKm, OFF_ROUTE_KM } from './aheadEvents.js';
+import { anchorTraffic, anchorRain, mergeEvent, stepEvent, primeThresholds, dueThreshold, fmtTrafficKm, fmtRainKm, OFF_ROUTE_KM, RAIN_STALE_MS, RAIN_PASS_KM } from './aheadEvents.js';
 
 const $ = (id) => document.getElementById(id);
 const CHECK_MS = 5000;
@@ -54,9 +54,12 @@ function paintEvents() {
     if (r.drop) trEv = null;
   }
   if (rainEv) {
-    const r = stepEvent(rainEv, ctx);
-    part.rain = r.text;
-    if (r.drop) rainEv = null;
+    if (rainEv.vague && !liveRain(rainEv, ctx.planId)) { rainEv = null; part.rain = null; } // belirsiz olay geçildi/eskidi
+    else {
+      const r = stepEvent(rainEv, ctx);
+      part.rain = r.text;
+      if (r.drop) rainEv = null;
+    }
   }
   const a = getState('nav').ahead;
   if (('traffic' in part && part.traffic !== a.traffic) || ('rain' in part && part.rain !== a.rain)) setAhead(part);
@@ -66,10 +69,24 @@ const setAhead = (part) => patch('nav', { ahead: { ...getState('nav').ahead, ...
 
 function render() {
   const a = getState('nav').ahead;
-  const lines = [a.cam, a.grade].filter(Boolean); // kamera ve dik eğim: nav/roadWarnings.js; hız aşımı, yağış ve trafik navigasyon üst panelinde dönüşümlü gösterilir
+  const lines = [a.cam].filter(Boolean); // hız kamerası: nav/roadWarnings.js; dik eğim, hız aşımı, yağış ve trafik navigasyon üst barının uyarı satırında (v0.99.59)
   const bar = $('road-alert');
   bar.replaceChildren(...lines.map((t) => Object.assign(document.createElement('div'), { textContent: t })));
   bar.classList.toggle('hidden', !lines.length);
+}
+
+// D1 (v0.99.77): yağış olayı hâlâ geçerli mi (aynı plan, eskimemiş, araç olay bölgesini geçmemiş)? Belirsiz (vague) olaylar için de konum alongKm'de tutulur.
+function liveRain(ev, id) {
+  const km = getState('engine').routeKm;
+  return !!ev && ev.planId === id && Number.isFinite(ev.alongKm) && Date.now() - ev.at <= RAIN_STALE_MS && !(km > ev.alongKm + RAIN_PASS_KM);
+}
+// Güncel veri olayı ne doğruluyor ne yalanlıyor: mesafesiz "mesafe belirsiz" (eventState 'unknown'), geri sayım ve ses yok; olayın kendi `at`'i korunur (eskime süresi uzamaz).
+const vagueRain = (ev) => ({ ...ev, anchored: false, vague: true, shownKm: null });
+function paintRain() {
+  const r = rainEv ? stepEvent(rainEv, navCtx()) : null;
+  if (r?.drop) rainEv = null;
+  setAhead({ rain: r && !r.drop ? r.text : null });
+  return r;
 }
 
 async function refreshRain(km) {
@@ -84,21 +101,31 @@ async function refreshRain(km) {
       return { d, lat: p.lat, lon: p.lon, t: now + prof.timeBetween(km, km + d) * 3600e3 };
     });
     const id = plan.planId;
-    if (!pts.length) { rainEv = null; return setAhead({ rain: null }); }
+    // D1: örnekler yalnızca km + [10, 25, ...] noktalarında; önceki olay bu yenilemenin örneklemediği yakın bantta mı (km .. ilk örnek)?
+    const inNearBand = (ev) => liveRain(ev, id) && ev.alongKm < km + (pts.length ? pts[0].d : Infinity);
+    if (!pts.length) { rainEv = inNearBand(rainEv) ? vagueRain(rainEv) : null; return paintRain(); }
     const res = await fetchWeather(pts);
     if (getState('plan').planId !== id) return; // istek sürerken plan değişti
     const i = res.findIndex((w) => w.rain >= RAIN_MM);
+    if (inNearBand(rainEv)) {
+      // İlk örnek de yağışlıysa yağış alanı banda uzanıyor: olay konumu korunur, veri tazelenir; mesafe güncel konumdan yeniden hesaplanır
+      // (eskiden ilk örneğe yeniden bağlanıp "~10 km"ye sıçrıyor ve yeniden seslendiriliyordu: GAP-1/GAP-3). Değilse bu veri onu
+      // ne doğrular ne yalanlar: silinmez (GAP-2), mesafesiz "belirsiz" gösterilir, seslendirilmez.
+      rainEv = i === 0 ? { ...rainEv, anchored: true, vague: false, mm: res[0].rain, temp: res[0].temp, at: Date.now(), known: true } : vagueRain(rainEv);
+      return paintRain();
+    }
     if (i < 0) { rainEv = null; return setAhead({ rain: null }); }
     const w = res[i];
     // Plan rotasındaki örnek noktasına bağlanır (alan düzeyinde tahmin: kesin başlangıç noktası değil); metin konumla güncellenir
     rainEv = mergeEvent(rainEv, anchorRain({ d: pts[i].d, fetchKm: km, mm: w.rain, temp: w.temp, planId: id, at: Date.now() }));
-    const r = stepEvent(rainEv, navCtx());
-    setAhead({ rain: r.text });
-    if (r.st.status === 'ahead') speak(`İleride yaklaşık ${fmtRainKm(r.shownKm)} kilometre sonra yağmur bekleniyor${w.temp <= 2 ? '. Buzlanma riski var' : ''}.`, { key: 'rain@' + Math.round(rainEv.alongKm / 50), cooldownMs: 30 * 60e3 });
+    const r = paintRain();
+    // Yalnızca yeni olay seslendirilir; ±1 km'de birleşen (süren) olay yeniden duyurulmaz (GAP-3)
+    if (r?.st.status === 'ahead' && !rainEv.known) speak(`İleride yaklaşık ${fmtRainKm(r.shownKm)} kilometre sonra yağmur bekleniyor${w.temp <= 2 ? '. Buzlanma riski var' : ''}.`, { key: 'rain@' + Math.round(rainEv.alongKm / 50), cooldownMs: 30 * 60e3 });
   } catch (err) {
     console.warn('Yol önü hava durumu alınamadı:', err.message);
-    rainEv = null;
-    setAhead({ rain: null });
+    // D1: istek başarısız → hâlâ geçerli olay silinmez ama eski mesafe gerçekmiş gibi gösterilmez/seslendirilmez: "mesafe belirsiz"
+    rainEv = liveRain(rainEv, getState('plan').planId) ? vagueRain(rainEv) : null;
+    paintRain();
   } finally {
     wxAt = Date.now();
     busyWx = false;
@@ -166,9 +193,19 @@ async function refreshTraffic(km) {
     const what = trEv.heavy ? 'yoğun trafik' : 'yavaş trafik';
     const where = r.st.status === 'inside' ? 'Şu an' : r.st.status === 'ahead' ? `${fmtTrafficKm(r.shownKm)} kilometre ileride` : 'İleride';
     if (trEv.anchored) primeThresholds(trEv, r.st.status === 'inside' ? 0 : r.shownKm);
-    if (!trEv.known) speak(`${where} ${what}, yaklaşık ${trEv.lenKm.toFixed(0)} kilometre.${delayMin >= 5 ? ` Tahmini gecikme ${delayMin} dakika.` : ''}`, { key: trEv.anchored ? `traffic@${Math.round(trEv.alongKm)}` : 'traffic?', cooldownMs: 15 * 60e3 });
+    // D1-T2: olay konumu doğrulanamadıysa (farklı yol / rota dışı) yalnızca "mesafe belirsiz" metni, ses yok
+    if (trEv.anchored && !trEv.known) speak(`${where} ${what}, yaklaşık ${trEv.lenKm.toFixed(0)} kilometre.${delayMin >= 5 ? ` Tahmini gecikme ${delayMin} dakika.` : ''}`, { key: trEv.anchored ? `traffic@${Math.round(trEv.alongKm)}` : 'traffic?', cooldownMs: 15 * 60e3 });
   } catch (err) {
     console.warn('Trafik bilgisi alınamadı:', err.message);
+    // D1-T2: istek başarısız → aynı planın son başarılı olayı silinmez ama eski konumdan geri sayım/eşik sesi yapılmaz: mesafesiz
+    // "mesafe belirsiz" (eventState 'unknown'). Olayın `at`'i korunur: son başarılı alınmadan TRAFFIC_STALE_MS (20 dk) sonra düşer.
+    // D1-T3: aynı planda son başarılı canlı varış süresi ve "≈ X dk gecikme" tahmini de güncelmiş gibi kullanılmaz:
+    // liveRemain silinir (navigator plan süresine döner), olaydan gecikme dakikası çıkarılır, olaysız gecikme metni kalkar.
+    if (getState('plan').planId === id) {
+      patch('nav', { liveRemain: null });
+      if (trEv && trEv.planId === id) { trEv = { ...trEv, anchored: false, shownKm: null, delayMin: 0 }; paintEvents(); }
+      else { trEv = null; if (getState('nav').ahead.traffic) setAhead({ traffic: null }); }
+    } else trEv = null;
   } finally {
     if (getState('plan').planId === id) trAt = Date.now(); // plan değiştiyse yeni planın ilk yenilemesi ertelenmez (check() trAt=0 yaptı)
     busyTr = false;

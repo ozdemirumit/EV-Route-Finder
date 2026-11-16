@@ -7,6 +7,8 @@ import { startNav, stopNav } from '../nav/navigator.js';
 import { toast } from './toast.js';
 import { save } from '../utils/storage.js';
 import { startGps, stopGps, locateOnce } from '../sensors/gps.js';
+import { RAIL_PITCH, railLimitTop, railFit } from './railFit.js';
+import { navLayoutReport } from './navLayoutProbe.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -109,29 +111,57 @@ export function initShell() {
   // Sağ kenar sütunu: harita kontrolleri her zaman görünür, konum düğmelerinin üstünden yukarı dizilir.
   // Üst panele/haritadan seç çubuğuna taşmasın diye yükseklik ölçülür; yer yetmezse CSS sonraki sütunu sola açar.
   // İki sütuna da sığmıyorsa (küçük ekranda navigasyon) sütun konum düğmelerinin soluna geçer ve onların yüksekliğini de kullanır.
-  const RAIL_PITCH = 44; // 40 px düğme + 4 px aralık
   const RAIL_REACH = 8 + 3 * RAIL_PITCH; // konum düğmelerinin solunda en çok 3 sütun
   const more = $('fabs-more');
   const fabsBox = $('fabs');
   const pickBox = $('pickbar');
+  const banners = $('banners');
   const fitMore = () => {
     const anchor = [...fabsBox.children].find((el) => el !== more && el.offsetParent);
     if (!anchor) return; // sayfa açıkken harita arayüzü gizli
     fabsBox.style.setProperty('--ev-lift', '0px'); // pil şeridi artık üst panelde: düğme sütunu alt şeride göre kaldırılmaz
     const box = fabsBox.getBoundingClientRect();
     // Yatay ekranda uyarı panelleri solda durur: yalnızca sütunun ulaşabileceği bölgedekiler sınırdır
-    const limits = [...hud.children, ...$('banners').children, pickBox].filter((el) => el.id !== 'banners' && el.offsetParent && el.getBoundingClientRect().right > box.left - RAIL_REACH);
-    const top = Math.max(0, ...limits.map((el) => el.getBoundingClientRect().bottom));
-    const above = anchor.getBoundingClientRect().top - top - 16;
+    const limits = [...hud.children, ...banners.children, pickBox].filter((el) => el.id !== 'banners' && el.offsetParent && el.getBoundingClientRect().right > box.left - RAIL_REACH);
+    // #banners kendi içinde kayar (max-height + overflow-y:auto): çocukların altı kabın görünür altına kırpılır
+    const bannersBox = banners.getBoundingClientRect();
+    const top = railLimitTop(limits.map((el) => ({ bottom: el.getBoundingClientRect().bottom, clipBottom: el.parentElement === banners ? bannersBox.bottom : null })));
     const count = [...more.children].filter((el) => el.offsetParent).length;
-    const side = count > 2 * Math.floor((above + 4) / RAIL_PITCH);
+    const { side, maxHeight } = railFit({ anchorTop: anchor.getBoundingClientRect().top, boxBottom: box.bottom, count, top });
     fabsBox.classList.toggle('side', side);
-    more.style.maxHeight = Math.max(40, side ? box.bottom - top - 8 : above) + 'px';
+    more.style.maxHeight = maxHeight + 'px';
   };
   const railObserver = new ResizeObserver(fitMore);
   for (const el of [hud, pickBox, fabsBox, $('mapstack')]) railObserver.observe(el);
   window.addEventListener('resize', fitMore);
   fitMore();
+  // RM-07 A3 tanılama (salt okunur): tarayıcı konsolunda window.__navLayout(). Yalnızca çağrılınca ölçer; DOM'a yazmaz, dinleyici/ağ yok.
+  // NAVLAYOUT-READ-BEGIN
+  window.__navLayout = () => {
+    const rectOf = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
+    const dims = (el) => ({ clientWidth: el.clientWidth, scrollWidth: el.scrollWidth, clientHeight: el.clientHeight, scrollHeight: el.scrollHeight });
+    const cells = [...document.querySelectorAll('#nb-metrics > .nb-cell')].filter((el) => el.offsetParent).map((el) => ({
+      id: el.id, width: el.getBoundingClientRect().width, ...dims(el),
+      parts: [...el.querySelectorAll('small, b, .ne-sub, .nh-avg')].filter((p) => p.offsetParent).map((p) => ({ sel: (p.id ? '#' + p.id : p.tagName.toLowerCase() + (p.className ? '.' + String(p.className).split(' ')[0] : '')), ...dims(p) })),
+    }));
+    const close = $('near-alert-close'), list = $('near-alert-toggle');
+    const closeSnap = close && close.offsetParent ? (() => {
+      const cs = getComputedStyle(close), ca = getComputedStyle(close, '::after');
+      const px = (v) => parseFloat(v) || 0;
+      return { rect: rectOf(close), border: { left: px(cs.borderLeftWidth), top: px(cs.borderTopWidth), right: px(cs.borderRightWidth), bottom: px(cs.borderBottomWidth) },
+        after: ca.content && ca.content !== 'none' && ca.position === 'absolute' ? { left: px(ca.left), top: px(ca.top), right: px(ca.right), bottom: px(ca.bottom) } : null };
+    })() : null;
+    return navLayoutReport({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      navActive: !!getState('nav').active,
+      cells,
+      banners: { clientHeight: banners.clientHeight, scrollHeight: banners.scrollHeight, scrollTop: banners.scrollTop },
+      close: closeSnap,
+      list: list && list.offsetParent ? { rect: rectOf(list) } : null,
+      rail: { side: fabsBox.classList.contains('side'), maxHeight: parseFloat(more.style.maxHeight) || null },
+    });
+  };
+  // NAVLAYOUT-READ-END
   // Navigasyonu durdur: sağdaki kırmızı düğme, onay ister (yanlışlıkla dokunuşta navigasyon kesilmesin). Varsayılan odak "Devam et"te.
   const stopDlg = $('stop-nav-dialog');
   $('fab-stopnav').addEventListener('click', () => stopDlg.showModal());

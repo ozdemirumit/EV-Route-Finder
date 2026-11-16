@@ -396,6 +396,12 @@ body.sheet-open main { display: flex; flex-direction: column; }
 /* Gizli değer alanları: type="password" değil (tarayıcının "şifreyi kaydet" penceresi çıkmasın), yalnızca noktalı görünür */
 .masked { -webkit-text-security: disc; text-security: disc; }
 body:not(.is-premium) [data-premium-only] { display: none !important; } /* Kamera ve Test yalnızca Premium'da (js/ui/premiumGate.js) */
+/* Herkese açık ücretsiz Beta (build-beta --public-free; html.public-free js/net/providerGateInstall.js koyar): paylaşılan sunucu, ücretli
+   sağlayıcı ve uydu gerektiren özellikler gösterilmez (hesap, kendi anahtarlarım, uydu, ABRP/trafik rozeti, trafik kartı, Premium notu). */
+.public-free-only { display: none !important; }
+html.public-free .public-free-only { display: block !important; }
+html.public-free #fab-sat, html.public-free #account-card, html.public-free #own-keys, html.public-free #data-src-note,
+html.public-free #bd-abrp, html.public-free #bd-traffic, html.public-free #premium-hint, html.public-free .card:has(> dl #t-level) { display: none !important; }
 .menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); text-align: left; color: var(--text); }
 .menu-item span { font-size: 24px; line-height: 1; margin-bottom: 4px; }
 .menu-item b { font-size: 15px; }
@@ -941,6 +947,9 @@ body.navmode .mapsoc, body.sheet-open .mapsoc { display: none; }
 /* Acil şarj önerisi: varsayılan tek kart; "Liste" diğer istasyonları aynı üst panelde açar, başlık kayarken görünür kalır */
 .tp-charge .tp-head { position: sticky; top: 0; z-index: 1; background: var(--card); }
 .tp-head .tog-list { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 66px; height: 40px; padding: 0 6px 0 10px; border-radius: 12px; color: var(--accent); font-size: 13px; font-weight: 700; white-space: nowrap; }
+/* Kapat X: görünür 36 px değişmez; görünmez dokunma alanı 34 (dolgu kutusu) + 2x5 = 44 px. Kenarlıktan 4 px taşar: "Liste" ile 6 px boşluk, .tp-charge dolgusu ≥ 6 px → çakışmaz, kırpılmaz */
+#near-alert-close { position: relative; }
+#near-alert-close::after { content: ""; position: absolute; inset: -5px; }
 .near-name { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .near-info[aria-expanded="true"] .near-name { white-space: normal; }
 .tog-list .tog-count { margin-left: 2px; font-variant-numeric: tabular-nums; opacity: .8; }
@@ -968,26 +977,19 @@ body.navmode .mapsoc, body.sheet-open .mapsoc { display: none; }
 @media (max-width: 340px) { html .navhud .nh-word { display: none; } } /* bayrak simgesi varışı zaten anlatır */
 @media (max-width: 340px) { .socbar-line2:has(.socbar-avg:not(.hidden)) .socbar-cons > small:last-child { display: none; } }
 
-/* Navigasyon üst paneli: iki sütun (sol: sonraki manevra + mesafe, sağ: büyük hız sınırı levhası + hız sabit, altında 3 sn dönüşümlü pil/varış/durak/uyarı) */
+/* Navigasyon üst paneli: üst satır manevra + sabit varış saati, altında altı sabit metrik, en altta dönüşümlü uyarı (v0.99.59 düzeni dosyanın navigasyon bölümünün sonunda) */
 .navbar { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 6px 10px; padding: 8px 10px 6px; align-items: stretch; }
 .nb-left { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-width: 0; }
 .nb-man { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .nb-man .nav-arrow { flex: none; font-size: 38px; width: 46px; padding-right: 8px; }
 .nb-man .nav-dist { font-size: 26px; }
 .nb-left .nav-then { grid-column: auto; margin-top: 0; padding-top: 4px; font-size: 12px; }
-.nb-trip { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
-.nb-trip b { font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-.nb-right { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-left: 10px; border-left: 1px solid var(--line); }
-.nb-speedrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.nb-speedrow .limit-sign { width: 58px; height: 58px; border-width: 6px; font-size: 24px; letter-spacing: -.5px; }
 .nb-speed { flex: none; align-items: center; }
 .nb-speed .ne-v b { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .nb-speed small { font-size: 11px; }
 .nb-speed.over .ne-v b { color: #e53935; }
 .nb-speed .nh-avg { display: inline-flex; align-items: baseline; gap: 2px; font-size: 13px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .nb-speed .nh-avg small { color: var(--muted); font-size: 11px; font-weight: 700; }
-.nb-rot { min-width: 0; min-height: 40px; display: flex; flex-direction: column; justify-content: center; }
-.nb-rot .hidden { display: none; }
 .nb-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
 .nb-cell small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .nb-cell .ne-v { align-items: flex-start; }
@@ -995,9 +997,12 @@ body.navmode .mapsoc, body.sheet-open .mapsoc { display: none; }
 .nb-alert { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; padding: 0 6px; border-block: 4px solid transparent; border-radius: 8px; background: rgba(255, 145, 0, .16); font-size: 12px; font-weight: 600; line-height: 1.25; }
 .nb-alert.over { background: rgba(229, 57, 53, .14); color: #c62828; }
 .nb-alert.hidden { display: none; }
+/* Sonraki planlı şarj durağı (dönüşümlü hücre): ad etiket satırında, varış pili + süre alt satırda; panel yüksekliği değişmez, taşan kısım … ile kesilir */
+#ne-next-t { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nb-cell .ne-name { font-weight: 700; color: var(--text); }
 /* v0.99.34 okunabilirlik: sol bölümde yalnızca mesafe + talimat + yol adı (talimatla aynı boy/ağırlık, en çok 2 satır); ikincil satır yok. Sağda pil/menzil/varış/durak/uyarı büyük. Panel yüksekliği aynı (en düşük 150 px). */
 .nb-left { justify-content: center; }
-.nb-left .nav-then, .nb-left .nb-trip { display: none; }
+.nb-left .nav-then { display: none; }
 .nb-man { align-items: flex-start; }
 .nb-man .nav-arrow { align-self: center; }
 .nb-man .nav-dist { font-size: 30px; }
@@ -1028,8 +1033,43 @@ body.navmode .mapsoc, body.sheet-open .mapsoc { display: none; }
 @media (max-height: 520px) {
   .nb-man .nav-arrow { font-size: 30px; width: 38px; }
   .nb-man .nav-dist { font-size: 22px; }
-  .nb-speedrow .limit-sign { width: 46px; height: 46px; border-width: 5px; font-size: 19px; }
   .nb-speed .ne-v b { font-size: 28px; }
+}
+
+/* ===== v0.99.91 Navigasyon üst barı: TEK panel, iki yarı (ayrı ikinci tam genişlik metrik şeridi yok).
+   Sol: dönüş oku + canlı mesafe, altında talimat ve yol adı (aynı boy). Sağ: dört sabit temel metrik 2×2
+   Hız (+limit levhası, Ø) | Pil (+menzil) / Varış saati (+varışta pil · kalan km) | Sonraki şarj; altında ayrı dönüşümlü uyarı alanı (3 sn; boşsa yok).
+   Metrikler dönmez, gizlenmez; taşan … ile kesilir. Renkler tema değişkenlerinden: açık ve koyu temada aynı kurallar. ===== */
+.navbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 6px 10px; padding: 8px 8px 6px; align-items: start; }
+.nb-man { flex-direction: column; align-items: stretch; gap: 2px; }
+.nb-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nb-man .nav-main { flex: none; min-width: 0; }
+.nb-right { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.nb-metrics { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); row-gap: 4px; align-items: stretch; }
+.nb-metrics .nb-cell { align-items: center; justify-content: flex-start; min-height: 44px; padding: 0 2px; border-left: 1px solid var(--line); text-align: center; }
+.nb-metrics .nb-cell:nth-child(odd) { border-left: 0; }
+.nb-metrics .nb-cell:nth-child(n+3) { padding-top: 3px; border-top: 1px solid var(--line); }
+.nb-metrics .nb-cell small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.nb-metrics .ne-v { display: flex; flex-direction: column; align-items: center; max-width: 100%; line-height: 1.1; }
+.nb-metrics .ne-v b { font-size: clamp(18px, 5.4vw, 22px); font-weight: 800; letter-spacing: -.3px; }
+.nb-metrics .nb-speed .ne-v b { font-size: clamp(22px, 6.6vw, 28px); line-height: 1; }
+.nb-metrics .ne-sub { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.nb-metrics .ne-sub b { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: 0; }
+.nb-metrics .nh-avg { display: inline-flex; align-items: baseline; gap: 1px; max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nb-metrics .nh-avg small, .nb-metrics .nh-avg b { font-size: 11px; color: inherit; }
+.nb-speed .ne-v { flex-direction: row; align-items: center; justify-content: center; gap: 4px; }
+.nb-limit { flex: none; display: flex; align-items: center; }
+.nb-limit .limit-sign { width: 38px; height: 38px; border-width: 4px; font-size: 15px; letter-spacing: -.5px; }
+.nb-limit .limit-sign:not(.hidden) + .ne-nolim { display: none; }
+.nb-speed .ne-nolim { display: grid; place-items: center; width: 30px; height: 30px; border: 2px dashed var(--line); border-radius: 50%; color: var(--muted); }
+.nb-metrics b.approx::before { content: '≈'; font-size: .7em; font-weight: 600; color: var(--muted); }
+#ne-next.none { font-size: 13px; font-weight: 700; line-height: 1.15; white-space: normal; }
+.nb-metrics .ne-name { font-weight: 700; color: var(--text); }
+@media (max-height: 520px) {
+  .nb-metrics .nb-cell { min-height: 40px; }
+  .nb-metrics .ne-v b { font-size: 17px; }
+  .nb-metrics .nb-speed .ne-v b { font-size: 21px; }
+  .nb-limit .limit-sign { width: 32px; height: 32px; border-width: 3px; font-size: 13px; }
 }
 
 /* ===== RM-02 Koyu tema (Ayarlar > Görünüm: Koyu ya da Otomatik + sistem koyu). Yalnızca <html data-theme="dark"> altında geçerli;

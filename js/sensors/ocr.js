@@ -4,7 +4,7 @@ import { preprocess, measureRoi, VARIANTS, PAD } from './preprocess.js';
 import { readCanvasDigits, digitMismatch } from './digitRecognizer.js';
 import { createSocFilter, createSpeedFilter } from './outlierFilter.js';
 import { consensus, windowConsensus } from './ocrConsensus.js';
-import { createOcrLoop, collectSamples } from './ocrLoop.js';
+import { createOcrLoop, collectSamples, createCadenceLog, cadenceStats } from './ocrLoop.js';
 import { variantOrder, exposureSignal } from './frameQuality.js';
 import { isCameraLive, nudgeExposure } from './camera.js';
 import { countOcrEngineOnce } from '../net/meter.js';
@@ -122,9 +122,11 @@ function logReading(key, entry) {
   patch('ocr', { lastReadAt: at, readCount: (o.readCount || 0) + 1, readings: [{ at, ...entry }, ...(o.readings || [])].slice(0, READINGS_MAX) });
 }
 
+const deps = { measureRoi, preprocess, readCanvasDigits }; // testlerde sahte kalite/ön işleme/OCR 2 ile değiştirilir
+
 async function readRoi(worker, video, stage, key, roi, parse, { timeLeft, isCurrent, parsedKeys, engine }) {
   const o = getState('ocr');
-  const q = measureRoi(video, stage, { ...o, roi });
+  const q = deps.measureRoi(video, stage, { ...o, roi });
   if (!q) return EMPTY_SAMPLE;
   if (!q.usable) {
     logReading(key, { engine, text: '', value: null, confidence: 0, digits: null, reason: q.reason, alt: null });
@@ -136,11 +138,14 @@ async function readRoi(worker, video, stage, key, roi, parse, { timeLeft, isCurr
   for (let i = 0; i < limit; i++) {
     if (i > 0 && timeLeft() <= 0) break;
     if (!isCurrent()) return EMPTY_SAMPLE;
-    if (!preprocess(video, stage, { ...o, roi, variant: order[i] }, work)) break;
-    const seg = readCanvasDigits(work, PAD, { clearOffLine: true }); // OCR 2 sonucu; OCR 1 için hane kanıtı. Ayrı satırdaki % tuvalden silinir, Tesseract da görmez
+    if (!deps.preprocess(video, stage, { ...o, roi, variant: order[i] }, work)) break;
+    const seg = deps.readCanvasDigits(work, PAD, { clearOffLine: true }); // OCR 2 sonucu; OCR 1 için hane kanıtı. Ayrı satırdaki % tuvalden silinir, Tesseract da görmez
     const read = engine === 'digit' ? { text: seg.text, confidence: seg.confidence } : (await worker.recognize(work)).data;
     const rawValue = parse(read.text);
-    const mismatch = digitMismatch(rawValue, seg.n);
+    // OCR1/OCR2 çapraz denetim: OCR 2 metni daha çok hane gösteriyorsa (7/"63", 4/"42") hane kanıtı belirsiz (n=null) olsa da kare hane eksiktir.
+    // Tek yönlü: OCR 2'nin hane kaçırması (63/"6") iyi kareyi reddetmez.
+    const alt = engine === 'digit' ? null : parse(seg.text);
+    const mismatch = digitMismatch(rawValue, seg.n) || (rawValue != null && alt != null && String(alt).length > String(rawValue).length ? 'truncated' : null);
     const r = {
       variant: order[i], value: mismatch ? null : rawValue, rawValue, text: read.text, confidence: read.confidence, mismatch,
       digits: seg.n, clipped: seg.clipped, alt: engine === 'digit' ? null : { text: seg.text, confidence: seg.confidence },
@@ -156,6 +161,8 @@ async function readRoi(worker, video, stage, key, roi, parse, { timeLeft, isCurr
   logReading(key, { engine, text: String(best.text ?? '').trim(), value: best.rawValue, confidence: Math.round(best.confidence), digits: best.digits, reason, clipped: best.clipped, alt: best.alt });
   return { value: valid ? best.value : null, raw: best.rawValue, confidence: best.confidence, quality: q.weight, q, digits: best.digits, reason };
 }
+
+export const __test = { readRoi, deps }; // yalnızca denemeler için
 
 const rawOf = (samples, c) => c.raw ?? samples.find((s) => s.raw != null)?.raw ?? null;
 const percent = (score) => Math.round((score || 0) * 100);
@@ -182,6 +189,12 @@ function trace(entry) {
   } catch { /* depolama yok */ }
 }
 if (typeof window !== 'undefined') window.__ocrTrace = () => getState('ocr').trace || [];
+
+/** RM-05 ritim tanılaması (salt okunur): son 120 çevrim + özet; tarayıcıdan window.__ocrCadence(). Karar akışını etkilemez. */
+const cadenceLog = createCadenceLog(120);
+if (typeof window !== 'undefined') {
+  window.__ocrCadence = () => { const cycles = cadenceLog.snapshot(); return Object.freeze({ cycles, stats: Object.freeze(cadenceStats(cycles)) }); };
+}
 
 const framesOf = (samples) => samples.map((s) => s.value ?? (s.raw != null ? `(${s.raw})` : '-'));
 
@@ -307,6 +320,7 @@ function dropWorker() {
 function ensureLoop() {
   loop ||= createOcrLoop({
     runCycle, intervalMs: OCR.intervalMs, cycleTimeoutMs: OCR.cycleTimeoutMs, onError: failCycle,
+    onCycle: (startedAt, durationMs, timedOut, { session } = {}) => cadenceLog.push({ startedAt, durationMs, timedOut, session }),
     // Arka planda donan çevrim dönüşte zaman aşımına düşebilir: işçi yine yenilenir ama eski oturum hata yazmaz
     onTimeout: ({ current = true } = {}) => { dropWorker(); if (current) failCycle(new Error('OCR zaman aşımı')); },
   });

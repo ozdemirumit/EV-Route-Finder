@@ -2,8 +2,212 @@
 // KURAL: her değişiklikte APP_VERSION artırılır ve APP_CHANGELOG'un EN ÜSTÜNE bir kayıt eklenir.
 //   x.y.z → z: düzeltme · y: yeni özellik · x: uyumsuz/büyük değişiklik. Commit mesajı "vX.Y.Z: ..." ile başlar.
 // Sürüm değişince sw.js'in önbellek adı da değişir; telefon yeni sürümü indirir.
-self.APP_VERSION = '0.99.61';
+self.APP_VERSION = '0.99.93';
 self.APP_CHANGELOG = [
+  {
+    v: '0.99.93', date: '2026-11-16',
+    notes: [
+      'Herkese açık ücretsiz Beta hazırlığı (henüz yayımlanmadı): Beta, isteğe bağlı "herkese açık ücretsiz" derlemeyle (build-beta --public-free) üretilebilir. Bu derleme ortak sunucuya hiç bağlanmaz (hesap, eşitleme, telemetri, fiyat, doluluk yok), ücretli harita/rota/arama servislerini kullanmaz; yalnızca OpenFreeMap, Valhalla, Open-Meteo, Photon ve Overpass kullanılır. Topluluk servisleri yanıt vermezse uygulama aynı isteği arka arkaya göndermez, giderek artan aralıklarla (en çok 10 dakika) yeniden dener; cihaz başına saatlik ve günlük üst sınır vardır. Hesap, uydu görüntüsü, trafik ve Premium öğeleri bu derlemede gizlidir.',
+      'Yakındaki istasyon araması kaynağa ulaşamazsa son bulunan istasyon listesi artık silinmez (en çok 1 saat gösterilir) ve otomatik yeniden arama 45 saniyeden başlayıp en çok 5 dakikaya kadar seyrekleşir; "Yenile" her zaman hemen arar.',
+      'Navigasyonda rotadan çıkınca yeni rota alınamazsa yeniden deneme 12 saniyeden başlayıp en çok 60 saniyeye kadar seyrekleşir; "Rota yeniden hesaplanıyor" sesi her sapmada yalnızca bir kez söylenir.',
+    ],
+  },
+  {
+    v: '0.99.92', date: '2026-11-16',
+    notes: [
+      'Yalnız kapalı cihaz testi için: Beta, isteğe bağlı "yalnız ücretsiz" yerel derlemeyle (build-beta --free-only) üretilebilir. Bu derlemede harita doğrudan OpenFreeMap ile açılır, rota Valhalla, hava ve yükselti Open-Meteo, arama Photon/Nominatim, şarj istasyonları Overpass\'tan gelir; Mapbox, Google, TomTom, HERE, ABRP ve Esri uydu gibi ücretli kaynaklara hiç istek gönderilmez ve ücretsiz servislerin istek sınırlarına uyulur. Normal Beta ve canlı uygulama değişmedi: sağlayıcı istekleri orada hâlâ duraklatılmış.',
+    ],
+  },
+  {
+    v: '0.99.91', date: '2026-11-16',
+    notes: [
+      'Navigasyon üst paneli tek kutuda iki yarıya ayrıldı: solda dönüş oku ve canlı kalan mesafe, altında talimat ile yol adı aynı büyüklükte; sağda hız (yanında hız limiti levhası), pil (altında menzil), varış saati (altında varışta pil ve kalan km) ve sonraki şarj sürekli görünür, dönmez. Trafik, yağış gibi uyarılar sağ yarının altındaki ayrı alanda 3 saniyede bir sırayla gösterilir. Paneli uzatan ikinci tam genişlik bilgi satırı kaldırıldı; harita daha çok görünür. Açık ve koyu temada aynı düzen.',
+    ],
+  },
+  {
+    v: '0.99.90', date: '2026-11-16',
+    notes: [
+      'Haritada konumunuz artık tek bir yeşil noktayla gösterilir: konum geç bulunduğunda "Konumum" başlangıç işareti ikinci bir yeşil nokta olarak kalmaz. Navigasyon sırasında yalnızca araç oku görünür, ayrıca konum noktası çıkmaz; navigasyonu durdurunca ok hemen tek yeşil noktaya döner. Rota, GPS ve yön oku aynen sürer.',
+    ],
+  },
+  {
+    v: '0.99.89', date: '2026-11-16',
+    notes: [
+      'Yakındaki istasyon araması hata verdiğinde (ör. sunucunun harita/arama hakkı dolduğunda) uygulama artık aynı aramayı arka arkaya tekrar tekrar göndermez: önce 1 dakika, sonra 2, 4, 8 dakika, en çok 10 dakikada bir yeniden dener. Arama başarılı olunca normale döner; İstasyonlar\'da Yenile\'ye dokunmak her zaman hemen arar. Düşük pil uyarısı ve sesli öneri aynen sürer.',
+    ],
+  },
+  {
+    v: '0.99.88', date: '2026-11-16',
+    notes: [
+      'Pil değeri yalnızca tahminse (kamera okuması eski, son değerden hesaplanan ya da varsayılan pil) düşük pil artık kendiliğinden rota yeniden planlamaz, yakındaki istasyonları ve doluluklarını internetten sormaz. Düşük pil uyarısı, sesli öneri ve hız tavsiyesi aynen sürer; istasyon listesi için İstasyonlar\'da Yenile\'ye dokunabilirsiniz. Kamera taze okuyunca, pili elle girince ya da Test Modu\'nda eskisi gibi çalışır.',
+    ],
+  },
+  {
+    v: '0.99.87', date: '2026-11-16',
+    notes: [
+      'Hava durumu alınamadığında (internet yok, servis yanıt vermiyor) uygulama artık her saniye yeniden denemez: önce 1 dakika, sonra 2, 4, 8 dakika, en çok 10 dakikada bir dener. İnternet dönünce hava bilgisi en geç 10 dakika içinde yenilenir; normal 15 dakika / 25 km yenileme kuralı değişmedi. Gereksiz veri ve pil kullanımı azalır.',
+    ],
+  },
+  {
+    v: '0.99.86', date: '2026-11-16',
+    notes: [
+      'Trafikli Mapbox rotası sunucu üzerinden artık yalnız Premium hesaplara verilir; ücretsiz hesapta rota sorulmadan ücretsiz (OpenStreetMap / Valhalla) rota kullanılır. Sunucuda Mapbox rotaları için ayrı bir aylık sayaç ve isteğe bağlı aylık sınır var; sınır dolunca da ücretsiz rotaya geçilir. Mapbox Premium gerektirdiğinde ileti artık yanlışlıkla "aylık hak doldu" demez. Kendi Mapbox anahtarını giren kullanıcının davranışı değişmedi; istasyon araması değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.85', date: '2026-11-16',
+    notes: [
+      'Fiyatlarda \'canlı\' etiketi artık yalnız resmî kaynaktan (NDW / OCPI) gelen, sağlayıcı zaman damgası olan, 6 saatten eski olmayan ve geçerlilik süresi dolmamış fiyata yazılır. Zaman damgası olmayan, eski ya da kaynağı bilinmeyen fiyat etiketsiz gösterilir; kullanıcı bildirimi \'bildirilen\', VeriApi.Pro tarifesi kendi adıyla kalır.',
+    ],
+  },
+  {
+    v: '0.99.84', date: '2026-11-16',
+    notes: [
+      'Rota planı, düşük pil önerisi, yakın istasyon sıralaması ve sesli uyarılar artık yalnız doğrulanmış resmî doluluğu kullanır: sağlayıcı zaman damgası olmayan, 15 dakikadan eski, NDW 0/N, sunucunun doğrulamadığı ya da yalnız topluluk bildirimine dayanan doluluk ne "boş" ne "dolu" sayılır (istasyon plandan çıkarılmaz, sona atılmaz, "boş yuva yok" anonsu yapılmaz). Topluluk bildirimleri ayrı satırda gösterilmeye devam eder. Ekrandaki üç durum (Müsait / Dolu / Bilinmiyor) değişmedi. Yeni sağlayıcı isteği yok.',
+    ],
+  },
+  {
+    v: '0.99.83', date: '2026-11-16',
+    notes: [
+      'İstasyon doluluğu artık yalnız üç durumla gösterilir: 🟢 Müsait, 🔴 Dolu, ⚪ Bilinmiyor. Sağlayıcı zaman damgası olmayan ya da 15 dakikadan eski doluluk "boş" veya "dolu" gösterilmez, "Bilinmiyor" yazar (ayrı "eski bilgi" etiketi kaldırıldı). Sunucu doluluğu doğrulanmamış bulduysa da Bilinmiyor yazar. Topluluk bildirimleri ayrı satırda, eskisi gibi. Rota planlaması değişmedi. Yeni sağlayıcı isteği yok.',
+    ],
+  },
+  {
+    v: '0.99.82', date: '2026-11-16',
+    notes: [
+      'Topluluk doluluk bildirimleri resmî sağlayıcı doluluğundan ayrı bir iç veri olarak tutulur (henüz ekrana bağlı değil, görünür değişiklik yok): kullanıcıların "Boş" bildirimi hiçbir zaman doğrulanmış "Müsait" sayılmaz. Rota planlaması değişmedi. Yeni sağlayıcı isteği yok.',
+    ],
+  },
+  {
+    v: '0.99.81', date: '2026-11-16',
+    notes: [
+      'Doluluk için iç karar kuralı eklendi (henüz ekrana bağlı değil, görünür değişiklik yok): sağlayıcı zaman damgası olmayan, 15 dakikadan eski ya da doğrulanmamış (ör. NDW 0/N) doluluk "Bilinmiyor" sayılacak. Yeni sağlayıcı isteği yok.',
+    ],
+  },
+  {
+    v: '0.99.80', date: '2026-11-16',
+    notes: [
+      'Trafik bilgisi alınamazsa son başarılı canlı varış süresi artık güncelmiş gibi kullanılmaz; varış süresi planlanan süreye döner. Eski "≈ X dk gecikme" tahmini de gösterilmez; süren sıkışıklık uyarısı gecikme dakikası olmadan "mesafe belirsiz" kalır. Başarılı her yenilemede canlı varış ve gecikme eskisi gibi gösterilir. Yeni sağlayıcı isteği yok.',
+    ],
+  },
+  {
+    v: '0.99.79', date: '2026-11-16',
+    notes: [
+      'Yol önü trafik uyarısı: trafik bilgisi alınamazsa eski sıkışıklığın kalan mesafesi artık kesinmiş gibi gösterilmez ve seslendirilmez; uyarı "mesafe belirsiz" olarak kalır, son başarılı alınmadan 20 dk sonra kalkar.',
+      'Sıkışıklığın yeri plan rotasına bağlanamadığında (farklı yol ya da rota dışı) yalnızca "mesafe belirsiz" yazılır, sesli uyarı yapılmaz. Başarılı her yenilemede mesafe güncel konum ve güncel trafik verisinden hesaplanır.',
+    ],
+  },
+  {
+    v: '0.99.78', date: '2026-11-16',
+    notes: [
+      'Kota koruması: tüm harici sağlayıcı istekleri varsayılan olarak DURAKLATILDI (ücretsiz kotalar doldu). Rota, trafik, hava, adres arama, şarj istasyonu/doluluk, hız limiti, Tesla listesi ve ABRP telemetri istekleri gönderilmez; uygulama bu verileri bilinmiyor/veri yok olarak gösterir.',
+      'Harita altlığı (karo) yüklenmez: harita düz arka planla açılır; rota çizgisi ve işaretçiler çizilir. Uygulamanın yerel işlevleri (pil/OCR, araç ayarları, kayıtlı yerler, geçmiş) çalışır.',
+      'Ara sunucuda da sağlayıcıya giden yollar duraklatıldı (503 provider_paused); geri açma yalnızca yönetici kararıyla.',
+    ],
+  },
+  {
+    v: '0.99.77', date: '2026-11-16',
+    notes: [
+      'Yol önü yağış uyarısı (D1): 10 dakikalık hava yenilemesinde kalan mesafe artık "~3 km"den "~10 km"ye sıçramıyor; yağış alanı sürüyorsa geri sayım güncel konumdan devam eder ve aynı yağış yeniden seslendirilmez. Yenileme yakındaki yağışı ne doğrular ne yalanlarsa ya da hava isteği başarısız olursa uyarı silinmez, "mesafe belirsiz" yazılır; eski mesafe gösterilmez, seslendirilmez. Ek hava isteği yok, istek sıklığı değişmedi; trafik uyarısı değişmedi. Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.76', date: '2026-11-15',
+    notes: [
+      'Tanılama: navigasyon üst paneli yerleşimi ölçülebiliyor (RM-07 A3). Tarayıcı konsolunda window.__navLayout() ekran genişliğini, metrik hücrelerinde taşma/kesilmeyi, üst uyarı alanının kayıp kaymadığını, kapat (X) düğmesinin etkin dokunma kutusunu (44 px denetimi), Liste düğmesiyle arasındaki boşluğu ve sağ kontrol sütununun yana geçip geçmediğini raporlar. Yalnızca çağrılınca okur; ekran, düğmeler ve navigasyon davranışı değişmedi. Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.75', date: '2026-11-15',
+    notes: [
+      'Sağdaki harita kontrolleri: üst uyarı alanı kendi içinde kaydığında, sütun artık yalnızca uyarıların ekranda görünen kısmını sınır alır; gizli (kaydırılarak görülen) içerik yüzünden düğmeler gereksiz yere konum düğmelerinin soluna kaymaz (RM-07 A2a). Uyarı alanı taşmıyorsa davranış aynı. Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.74', date: '2026-11-15',
+    notes: [
+      'Erişilebilirlik: yakındaki şarj uyarısındaki kapat (X) düğmesinin dokunma alanı 36 px\'ten 44 px\'e büyütüldü (RM-07 A1). Düğmenin görünür boyutu ve yeri değişmedi; büyütme görünmezdir, komşu "Liste" düğmesine binmez. Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.73', date: '2026-11-15',
+    notes: [
+      'Tanılama: pil okuma (OCR) döngüsünün ritmi ölçülüyor (RM-05). Son 120 çevrimin başlangıç zamanı, süresi ve zaman aşımı kaydedilir; tarayıcı konsolunda window.__ocrCadence() ile medyan, p95, en uzun aralık ve 5±1 sn oranı görülebilir. Pil kararı, süzgeç, 5 sn zamanlayıcı, kamera seçimi ve navigasyon ekranı değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.72', date: '2026-11-14',
+    notes: [
+      'Altyapı: OSM, Mapbox ve TomTom rota yanıtları için yol olayları bağdaştırıcı iskeleti eklendi (BL-P2-05a). Bağdaştırıcılar bilerek boş sonuç döndürür: yanıtta tünel, gişe, çıkış ya da tabela bilgisi olsa bile alanlar gerçek kayıtla doğrulanmadığı için hiçbir yol olayı üretilmez. Uygulamaya bağlı değildir; görünür bir değişiklik yok, yol uyarısı gösterilmez.',
+    ],
+  },
+  {
+    v: '0.99.71', date: '2026-11-14',
+    notes: [
+      'Altyapı: sağlayıcıdan bağımsız yol olayları modeli eklendi (tünel, köprü, alt/üst geçit, gişe, çıkış, tabela; BL-P2-03 F1). Olay yalnızca rotayı veren sağlayıcıdan kabul edilir; GPS, hız, kamera ya da OCR\'dan çıkarım yapılmaz. Henüz hiçbir sağlayıcı bu veriyi sağlamıyor; uygulamada görünür bir değişiklik yok, yol uyarısı gösterilmez.',
+    ],
+  },
+  {
+    v: '0.99.70', date: '2026-11-14',
+    notes: [
+      'Düşük pil / plan ulaşılamıyor uyarısında rota yalnızca güvenilir pil bilgisiyle (taze kamera okuması, elle girilen, Test Modu) kendiliğinden şarj durağı eklenerek değişir. Pil tahmin, eski kamera okuması ya da varsayılan değerse uyarı paneli ve sesli öneri sürer ama rota kendiliğinden değişmez (BL-P0-05).',
+    ],
+  },
+  {
+    v: '0.99.69', date: '2026-11-14',
+    notes: [
+      'Yol önü trafik ve yağmur uyarıları 11 dilde tam çevrilir: trafik (ileride, ileride + gecikme, şu an, mesafe belirsiz) ve yağmur (ileride, bu bölgede, mesafe belirsiz) metinleri artık Türkçe kalmaz; genel "🚦 {0} {1} ({2} km)" deseninin önce eşleşip yarım çeviri üretmesi önlendi (BL-P2-01)',
+      'Navigasyon üst panelindeki "Limit" etiketi de çevrilir',
+    ],
+  },
+  {
+    v: '0.99.68', date: '2026-11-14',
+    notes: [
+      'Kamera pil okuması yanlış düşük değerde (ör. 18) takılıp gerçek yüksek değere (ör. 77) dönmüyordu; araç dururken ya da hız bilinmiyorken araya karışan tek hatalı okumalar artık kanıtı sıfırlamaz, değer 60 saniye içinde düzelir. Sürüşte fiziksel olmayan ani yükselişe karşı koruma aynen sürer. Ara sıra çıkan sahte yüksek okumalar ve aşağı yöndeki korumalar değişmedi.',
+    ],
+  },
+  {
+    v: '0.99.67', date: '2026-11-14',
+    notes: [
+      'Düzeltme (Beta): kamera pil okumasında iki okuyucu (OCR 1 ve OCR 2) artık karşılaştırılır. OCR 1 tek hane (ör. 7) okurken OCR 2 aynı karede daha çok hane (ör. 63) görüyorsa o kare geçersiz sayılır; böylece 63\'ün 7, 42\'nin 4 okunması pili düşürmez (BL-P1-02). Gerçek tek haneli değer eskisi gibi kabul edilir. Cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.66', date: '2026-11-14',
+    notes: [
+      'Beta: navigasyon durdurulunca (ya da varışta) harita güvenilir güncel konumuna döner ve hıza uygun normal sürüş yakınlığına geçer (durağanken 17, 40-80 km/s 16, üstü 15).',
+      'Konum yoksa, GPS kapalı/aranıyor ya da doğruluk 100 metreden kaba ise harita olduğu yerde kalır; haritayı elle geziyorsan yeniden ortalanmaz. Cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.65', date: '2026-11-14',
+    notes: [
+      'Düzeltme (Beta): kamera pil okumasında doğru %63 tutulurken art arda gelen yanlış 7 okumaları pili artık 7\'ye indirmez (BL-P1-01). İki haneden tek haneye inmek için görüntüde gerçekten tek rakam görülmesi gerekir; tek rakam görülen gerçek düşüş eskisi gibi kabul edilir. Cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.64', date: '2026-11-14',
+    notes: [
+      'Yeni (Beta): navigasyon üst barı altı sabit metrik gösterir — Hız (Ø ortalama), Limit, Pil, Menzil, Sonraki şarj (ad, kalan km, durakta varış pili ve süre), Varışta; hücreler artık dönüşümlü değil. Varış saati üst satırın sağında sabit.',
+      'Pil güveni: eski kamera/tahmin değerleri ≈ ile, varsayılan ya da kamerayla çelişkili pilde menzil ve varışta pil -- gösterilir; durakta varış pili yalnızca canlı kamera, elle giriş ve Test Modu\'nda.',
+      'Rota hesaplanırken, konum yokken ya da rotadan çıkınca sonraki şarj ve varış saati eski değerde kalmaz (--).',
+      'Uyarı satırı (pil/plan uyarısı, trafik, yağış, dik eğim, hız aşımı) üst barın altında yalnızca uyarı varken görünür.',
+      'Sesli yönlendirme (Türkçe): şerit verisi kesinse dönüş anonsuna adım başına bir kez şerit önerisi eklenir (ör. "Sağ şeritleri kullanın."). Gerçek cihazda doğrulanmadı.',
+    ],
+  },
+  {
+    v: '0.99.63', date: '2026-11-13',
+    notes: [
+      'Düzeltme (Beta): Rota sayfasında Varış kutusuna dokununca (kutu boşken) son hedefler öneri kutusunda listelenir; klavye açıkken tek dokunuşla seçilir. "Son hedefler" açılır listesi klavye açıkken ilk dokunuşta açılır (önceden ilk dokunuş yalnızca klavyeyi kapatıyordu).',
+      'Açık liste en çok ekranın %30\'u kadar yer kaplar, kendi içinde kayar; Planla/Git düğmeleri görünür kalır. Silme (×) ve Listeyi temizle aynı yerde.',
+    ],
+  },
+  {
+    v: '0.99.62', date: '2026-11-13',
+    notes: [
+      'Düzeltme (Beta): haritada araç işaretinin yanında duran ikinci yuvarlak "Konumum" başlangıç iğnesi artık çizilmez (varsayılan başlangıç, yeniden rota, istasyona git). Araç işareti, rota çizgisi, varış, ara durak ve şarj durakları değişmedi; başka bir yer başlangıç seçilirse iğnesi görünür, konum bilinmiyorsa Konumum iğnesi de kalır.',
+    ],
+  },
   {
     v: '0.99.61', date: '2026-11-13',
     notes: [

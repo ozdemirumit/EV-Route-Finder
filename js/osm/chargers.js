@@ -7,6 +7,7 @@ import { classify } from '../routing/operators.js';
 import { haversineKm } from '../utils/geo.js';
 import { load } from '../utils/storage.js';
 import { proxyFetchRetry, proxyHas } from '../net/proxy.js';
+import { freeOnlyMode, publicFreeMode, PUBLIC_FREE_ENDPOINTS } from '../net/providerGate.js';
 import { cached, cacheGet, cacheSet, TTL } from '../utils/cache.js';
 import { candidate, customRaw, dedupe, finalize, priced, summarize } from '../routing/chargerSource.js';
 import { teslaAlong, teslaAround } from '../routing/tesla.js';
@@ -21,6 +22,9 @@ const OVERPASS = [
   'https://overpass.private.coffee/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+// Herkese açık ücretsiz Beta: yalnız izin listesindeki ayna (overpass.private.coffee); parçalar SIRAYLA ve kova aralığından seyrek sorulur
+const PUBLIC_OVERPASS = PUBLIC_FREE_ENDPOINTS.find((e) => e.id === 'overpass');
+const mirrors = () => (publicFreeMode() ? OVERPASS.filter((u) => PUBLIC_OVERPASS.hosts.includes(new URL(u).hostname)) : OVERPASS);
 const SEG_KM = 60; // rota bu uzunlukta parçalara bölünüp her parça tek sorgu olur (parça başına önbelleğe alınır); küçük parça = kısa sorgu, paralel çalışır
 const SEG_PARALLEL = 3; // aynı anda en çok bu kadar parça sorgusu (Overpass aynaları arasında dağılır)
 const STEP_KM = 8; // sorguya verilen çizgi noktaları arası
@@ -30,7 +34,7 @@ const AC_SOCKETS = ['type2', 'type2_cable', 'type1', 'type3'];
 const TESLA_SOCKETS = ['tesla_supercharger', 'tesla_destination', 'tesla_supercharger_ccs', 'nacs'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-export const ocmKey = () => (proxyHas('ocm') ? 'proxy' : load('ocmKey', '')); // ara sunucuda anahtar varsa o kullanılır
+export const ocmKey = () => (freeOnlyMode() ? '' : proxyHas('ocm') ? 'proxy' : load('ocmKey', '')); // ara sunucuda anahtar varsa o kullanılır; yalnız ücretsiz modda OpenChargeMap yok
 
 /** "50 kW", "350 kW;90 kW", "22000", "7,4 kW" → en büyük kW (bilinmiyorsa null). Birimsiz ve >1000 ise watt sayılır. */
 export function parseKw(v) {
@@ -112,12 +116,13 @@ export async function overpass(query, pref = 0) {
     } catch { /* sunucuya ulaşılamadı: doğrudan dene */ }
   }
   const now = Date.now();
-  const alive0 = OVERPASS.filter((u) => (deadUntil.get(u) ?? 0) < now);
+  const all = mirrors();
+  const alive0 = all.filter((u) => (deadUntil.get(u) ?? 0) < now);
   const rot = alive0.length ? pref % alive0.length : 0;
   const alive = [...alive0.slice(rot), ...alive0.slice(0, rot)]; // paralel sorgular farklı aynadan başlar
   let lastErr = null;
   let reached = false;
-  for (const url of alive.length ? alive : OVERPASS) {
+  for (const url of alive.length ? alive : all) {
     try {
       const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: query }), signal: AbortSignal.timeout(45000) });
       reached = true;
@@ -267,7 +272,7 @@ export async function fetchChargers(pts, profile) {
         const key = `ovp:${fmt(seg[0])}:${seg.length}:${fmt(seg.at(-1))}`;
         try {
           const r = await cached(key, TTL.long, async () => {
-            const slot = Math.max(Date.now(), lastStart + 600); // başlangıçlar en az 600 ms arayla
+            const slot = Math.max(Date.now(), lastStart + (publicFreeMode() ? PUBLIC_OVERPASS.gapMs + 100 : 600)); // başlangıçlar en az 600 ms arayla (herkese açık Beta: kova aralığı)
             lastStart = slot;
             if (slot > Date.now()) await sleep(slot - Date.now());
             ctx.calls++;
@@ -281,7 +286,7 @@ export async function fetchChargers(pts, profile) {
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(SEG_PARALLEL, segs.length) }, segWorker));
+    await Promise.all(Array.from({ length: Math.min(publicFreeMode() ? 1 : SEG_PARALLEL, segs.length) }, segWorker));
   };
 
   if (!usedMapbox) await overpassSegs(segments(pts));
