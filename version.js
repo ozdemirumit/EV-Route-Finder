@@ -2,8 +2,62 @@
 // KURAL: her değişiklikte APP_VERSION artırılır ve APP_CHANGELOG'un EN ÜSTÜNE bir kayıt eklenir.
 //   x.y.z → z: düzeltme · y: yeni özellik · x: uyumsuz/büyük değişiklik. Commit mesajı "vX.Y.Z: ..." ile başlar.
 // Sürüm değişince sw.js'in önbellek adı da değişir; telefon yeni sürümü indirir.
-self.APP_VERSION = '0.99.107';
+self.APP_VERSION = '0.99.115';
 self.APP_CHANGELOG = [
+  {
+    v: '0.99.115', date: '2026-11-21',
+    notes: [
+      'Yeni: sert viraj uyarısı. Rotanın kendi geometrisinden hesaplanır (ek internet isteği yok, tüm rota sağlayıcılarında çalışır): sert virajdan 200–600 m önce sesli ve ekranda uyarır, önerilen hızı söyler; keskin dönemeçte (saç tokası) ayrıca "yavaşla" der. Kavşak ve dönüşlerde (talimat zaten verilir) uyarmaz',
+      'Ayarlar > Uyarılar bölümüne "Sert viraj uyarısı" anahtarı eklendi (varsayılan açık); 11 dilde çevrildi',
+    ],
+  },
+  {
+    v: '0.99.114', date: '2026-11-21',
+    notes: [
+      'Yeni: haritadaki herhangi bir şarj istasyonu "Rotaya Ekle" ile aktif rotaya zorunlu şarj durağı olarak eklenir. Önce istasyona gidiş yönünde erişim yol ağıyla doğrulanır (karşı şerit/bariyer varsa eklenmez), rota istasyondan geçecek şekilde sağlayıcıdan yeniden alınır, kalan duraklar yeniden planlanır ve istasyon listesi güncellenir; değişiklik önizlenir, plan yalnızca "Onayla" ile değişir',
+      'Durak kartında planlanan ya da eklenen durağın şarj hedefi (🎯 %) görünür; dokununca ne kadara kadar şarj edileceği seçilir (önizleme + onay). 34 yeni metin 11 dilde çevrildi',
+    ],
+  },
+  {
+    v: '0.99.113', date: '2026-11-20',
+    notes: [
+      'Yeni navigasyon üst paneli: üstte mavi manevra bloğu (ok, mesafe, talimat, yol adı beyaz yazıyla), altında tek satırda üç metrik (pil, varış, sonraki şarj), en altta tam genişlikte uyarı; uzun yol adları ve değerler artık daha az sıkışır',
+      'Hız, hız limiti ve ortalama hız panelden çıkıp haritanın sol altında ayrı bir kutuya taşındı; limit yoksa boş daire gösterilmez',
+      'Navigasyon dışındaki pil ve menzil paneli de aynı tasarım diliyle yenilendi: mavi başlık bloğu, altında pil sürgüsü; düşük pilde başlık turuncuya döner',
+    ],
+  },
+  {
+    v: '0.99.112', date: '2026-11-20',
+    notes: [
+      'DÜZELTME: ana sitede (üretim) harita, rota, hava ve şarj istasyonu bilgisi gelmiyordu; harici sağlayıcı istekleri yanlışlıkla kapalı kalmıştı, şimdi Beta ile aynı tam modda açık',
+    ],
+  },
+  {
+    v: '0.99.111', date: '2026-11-20',
+    notes: [
+      'Google şarj istasyonu araması: sunucudaki günlük sınır, Google geçici istek sınırı (429), anahtar/izin hatası ve Premium gereksinimi artık ayrı ve anlaşılır mesajlarla gösterilir; yanıltıcı "arama üst sınır nedeniyle yapılmadı" hatası kalktı',
+      'Google geçici sunucu hatası (502/503/504) verirse ilgili bölge bir kez yeniden denenir; ücretli arama sınırı yeniden denemelerle aşılmaz',
+      'Yeni rota planlanınca eskisi için süren ücretli Google araması iptal edilir; taranmayan alt bölgeler hata değil bilgi notu olarak gösterilir (11 dil)',
+    ],
+  },
+  {
+    v: '0.99.110', date: '2026-11-20',
+    notes: [
+      'Bakım: hiçbir yerde kullanılmayan eski kodlar silindi (tek adımlı Google girişi, kullanılmayan kayıt okuma/yazma yardımcıları, trafik çarpanı sabiti); ekranda görünen davranış değişmedi',
+    ],
+  },
+  {
+    v: '0.99.109', date: '2026-11-20',
+    notes: [
+      'Bakım: çevrimdışı önbelleğe (sw.js) pil sapması yeniden plan önerisi ve durak şarj hedefi dosyaları da eklendi; güncelleme sonrası ağ yokken ilk açılışta bu ekranlar da çalışır',
+    ],
+  },
+  {
+    v: '0.99.108', date: '2026-11-20',
+    notes: [
+      'Bakım: navigasyon üst panelindeki güvenilir pil kaynağı listesi tek yerde (routing/socTrust.js) tutuluyor; ekranda görünen davranış değişmedi',
+    ],
+  },
   {
     v: '0.99.107', date: '2026-11-17',
     notes: [
@@ -940,6 +994,12 @@ self.APP_CHANGELOG = [
       'Yeni görünüm: koyu arayüz, ince çizgi simgeler, geniş harita; alt menüde Harita, İstasyonlar ve Daha fazla. Favoriler Daha fazla ve İstasyonlar içinde.',
       'Üst panel manevra ve şarj önerisini tek kartta gösterir; az kullanılan harita düğmeleri üç nokta menüsünde, durum rozetleri başlıktaki menüde.',
       'Pil ve menzil tek düğmede: dokununca elle ayar penceresi açılır. Pil bilgisi yoksa %80 kullanılır ve Varsayılan yazar; son değer bu cihazda saklanır, kamera kapanınca korunur.',
+    ],
+  },
+  {
+    v: '0.86.1', date: '2026-11-08',
+    notes: [
+      'Telefonda varış kutusuna dokununca sayfanın yakınlaşıp ekrandan taşması düzeltildi: dokunmatik ekranda yazı alanları 16 px.',
     ],
   },
   {
